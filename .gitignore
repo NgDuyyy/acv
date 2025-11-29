@@ -1,0 +1,33 @@
+# Python cache / bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE / editor
+.idea/
+.vscode/
+*.code-workspace
+
+# Dataset & processed artifacts (do not upload large data)
+data/
+# raw data folders can be large; ignore entire data tree if shared elsewhere
+# comment out if you need to version control JSON configs
+# data/
+
+# Model checkpoints & logs
+result/pretrained_parameters/
+.cadence/
+
+# Temporary files
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
+
+# Shell / run scripts artifacts
+run.sh
