@@ -1,4 +1,4 @@
-# Hướng dẫn chạy Image-Captioning
+# Hướng dẫn chạy 
 
 ## 1. Tổng quan
 Dự án triển khai mô hình sinh mô tả ảnh (image captioning) sử dụng encoder ResNet101 và decoder LSTM với beam search cho suy luận. Cấu trúc chính:
