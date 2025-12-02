@@ -15,11 +15,11 @@ Chúng tôi đã triển khai và so sánh hai kiến trúc tiên tiến để g
 
 | Họ và Tên | Mã sinh viên | Vai trò | Nhiệm vụ chính đến giữa kỳ |
 | :--- | :--- | :--- | :--- |
-| Trịnh Hải Đăng | 220015xx | Nhóm trưởng | Xây dựng Dataset & Kiểm thử tổng thể |
-| Thái Bảo | 220015yy | Thành viên | Xây dựng Dataset & Kiểm thử tổng thể |
-| Nguyễn Đình Duy | **22001554** | Thành viên | \textbf{Phát triển Mô hình Encoder-Decoder} |
-| Đặng Tùng Anh | **22001537** | Thành viên | \textbf{Phát triển Mô hình Detector-Decoder} |
-| Trần Ngọc Nam Hải | 220015zz | Thành viên | Phát triển Mô hình Detector-Decoder |
+| Trịnh Hải Đăng | 22001561 | Nhóm trưởng | Xây dựng Dataset & Kiểm thử tổng thể |
+| Phan Đinh Thái Bảo | 22001547 | Thành viên | Xây dựng Dataset & Kiểm thử tổng thể |
+| Nguyễn Đình Duy | 22001554 | Thành viên | \textbf{Phát triển Mô hình Encoder-Decoder} |
+| Đặng Tùng Anh | 22001537 | Thành viên | \textbf{Phát triển Mô hình Detector-Decoder} |
+| Trần Ngọc Nam Hải | 22001572 | Thành viên | Phát triển Mô hình Detector-Decoder |
 
 ---
 
