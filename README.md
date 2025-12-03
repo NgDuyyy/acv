@@ -17,8 +17,8 @@ Chúng tôi đã triển khai và so sánh hai kiến trúc tiên tiến để g
 | :--- | :--- | :--- | :--- |
 | Trịnh Hải Đăng | 22001561 | Nhóm trưởng | Xây dựng Dataset & Kiểm thử tổng thể |
 | Phan Đinh Thái Bảo | 22001547 | Thành viên | Xây dựng Dataset & Kiểm thử tổng thể |
-| Nguyễn Đình Duy | 22001554 | Thành viên | \textbf{Phát triển Mô hình Encoder-Decoder} |
-| Đặng Tùng Anh | 22001537 | Thành viên | \textbf{Phát triển Mô hình Detector-Decoder} |
+| Nguyễn Đình Duy | 22001554 | Thành viên | Phát triển Mô hình Encoder-Decoder |
+| Đặng Tùng Anh | 22001537 | Thành viên | Phát triển Mô hình Detector-Decoder |
 | Trần Ngọc Nam Hải | 22001572 | Thành viên | Phát triển Mô hình Detector-Decoder |
 
 ---
@@ -36,3 +36,5 @@ Toàn bộ code và hướng dẫn chi tiết cho từng kiến trúc mô hình 
     * **Nội dung:** Code nguồn, file cấu hình, và hướng dẫn chạy (`README`) cho mô hình dựa trên phát hiện đối tượng.
 
 **Vui lòng chuyển sang nhánh tương ứng để tìm hướng dẫn cài đặt và thực thi code.**
+
+Link dataset: https://drive.google.com/drive/u/0/folders/1lN91FJxCL4jkXU1U1I7JcA-M88K1owpf
