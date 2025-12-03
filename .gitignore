@@ -1,0 +1,10 @@
+.idea/
+.cadence/
+extract_feature.sh
+pipeline.sh
+train.sh
+__pycache__/
+*.pyc
+.DS_Store
+result/
+cider/data/
