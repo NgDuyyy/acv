@@ -2,7 +2,7 @@
 
 ## Giới Thiệu Chung
 
-Dự án này tập trung nghiên cứu và triển khai các mô hình \textbf{Image Captioning} (Mô tả Hình ảnh) – nhiệm vụ kết hợp giữa Computer Vision và Xử lý Ngôn ngữ Tự nhiên (NLP). Mục tiêu là xây dựng hệ thống có khả năng tự động sinh ra một câu mô tả tự nhiên và chính xác cho bất kỳ hình ảnh đầu vào nào.
+Dự án này tập trung nghiên cứu và triển khai các mô hình Image Captioning (Mô tả Hình ảnh) – nhiệm vụ kết hợp giữa Computer Vision và Xử lý Ngôn ngữ Tự nhiên (NLP). Mục tiêu là xây dựng hệ thống có khả năng tự động sinh ra một câu mô tả tự nhiên và chính xác cho bất kỳ hình ảnh đầu vào nào.
 
 Chúng tôi đã triển khai và so sánh hai kiến trúc tiên tiến để giải quyết bài toán này:
 
