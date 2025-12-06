@@ -17,9 +17,9 @@ Chúng tôi đã triển khai và so sánh hai kiến trúc tiên tiến để g
 | :--- | :--- | :--- | :--- |
 | Trịnh Hải Đăng | 22001561 | Nhóm trưởng | Xây dựng Dataset & Kiểm thử tổng thể |
 | Phan Đinh Thái Bảo | 22001547 | Thành viên | Xây dựng Dataset & Kiểm thử tổng thể |
-| Nguyễn Đình Duy | 22001554 | Thành viên | Phát triển Mô hình Encoder-Decoder |
-| Đặng Tùng Anh | 22001537 | Thành viên | Phát triển Mô hình Detector-Decoder |
-| Trần Ngọc Nam Hải | 22001572 | Thành viên | Phát triển Mô hình Detector-Decoder |
+| Nguyễn Đình Duy | 22001554 | Thành viên | Mô hình Encoder-Decoder |
+| Đặng Tùng Anh | 22001537 | Thành viên | Mô hình Detector-Decoder |
+| Trần Ngọc Nam Hải | 22001572 | Thành viên | Mô hình Detector-Decoder |
 
 ---
 
