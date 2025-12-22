@@ -75,7 +75,7 @@ def getCOCO(dataset):
 def language_eval(dataset, preds, preds_n, eval_kwargs, split):
     model_id = eval_kwargs['id']
     eval_oracle = eval_kwargs.get('eval_oracle', 0)
-    bleu_only = bool(eval_kwargs.get('language_eval_bleu_only', False) or eval_kwargs.get('bleu_only', False))
+    bleu_only = bool(eval_kwargs.get('bleu_only', False))
     
     # create output dictionary
     out = {}
@@ -111,48 +111,30 @@ def language_eval(dataset, preds, preds_n, eval_kwargs, split):
     print('using %d/%d predictions' % (len(preds_filt), len(preds)))
     json.dump(preds_filt, open(cache_path, 'w')) # serialize to temporary json file. Sigh, COCO API...
 
-    if bleu_only:
-        if CocoBleu is None:
-            raise ImportError("pycocoevalcap BLEU scorer not available; cannot compute BLEU-4 only.")
-        # Build references/hypotheses dicts
-        refs = {}
-        hyps = {}
-        for p in preds_filt:
-            image_id = p['image_id']
-            annIds = coco.getAnnIds(imgIds=image_id)
-            anns = coco.loadAnns(annIds)
-            refs[image_id] = [a['caption'] for a in anns]
-            hyps[image_id] = [p['caption']]
-        scorer = CocoBleu(4)
-        scores, _ = scorer.compute_score(refs, hyps)
-        out['Bleu_4'] = scores[3]
-        # propagate mean perplexity/entropy for logging consistency
-        out['perplexity'] = mean_perplexity
-        out['entropy'] = mean_entropy
-        imgToEval = {img_id: {'Bleu_4': scores[3]} for img_id in hyps.keys()}
-    else:
-        cocoRes = coco.loadRes(cache_path)
-        cocoEval = COCOEvalCap(coco, cocoRes)
-        cocoEval.params['image_id'] = cocoRes.getImgIds()
-        cocoEval.evaluate()
+    
+    # Force full evaluation (removed bleu_only check)
+    cocoRes = coco.loadRes(cache_path)
+    cocoEval = COCOEvalCap(coco, cocoRes)
+    cocoEval.params['image_id'] = cocoRes.getImgIds()
+    cocoEval.evaluate()
 
-        for metric, score in cocoEval.eval.items():
-            out[metric] = score
-        # Add mean perplexity
-        out['perplexity'] = mean_perplexity
-        out['entropy'] = mean_entropy
+    for metric, score in cocoEval.eval.items():
+        out[metric] = score
+    # Add mean perplexity
+    out['perplexity'] = mean_perplexity
+    out['entropy'] = mean_entropy
 
-        imgToEval = cocoEval.imgToEval
-        # SPICE may be missing if evaluator disabled it; guard access.
-        first_eval = list(imgToEval.values())[0]
-        if 'SPICE' in first_eval:
-            for k in first_eval['SPICE'].keys():
-                if k != 'All':
-                    out['SPICE_'+k] = np.array([v['SPICE'][k]['f'] for v in imgToEval.values()])
-                    out['SPICE_'+k] = (out['SPICE_'+k][out['SPICE_'+k]==out['SPICE_'+k]]).mean()
-        for p in preds_filt:
-            image_id, caption = p['image_id'], p['caption']
-            imgToEval[image_id]['caption'] = caption
+    imgToEval = cocoEval.imgToEval
+    # SPICE may be missing if evaluator disabled it; guard access.
+    first_eval = list(imgToEval.values())[0]
+    if 'SPICE' in first_eval:
+        for k in first_eval['SPICE'].keys():
+            if k != 'All':
+                out['SPICE_'+k] = np.array([v['SPICE'][k]['f'] for v in imgToEval.values()])
+                out['SPICE_'+k] = (out['SPICE_'+k][out['SPICE_'+k]==out['SPICE_'+k]]).mean()
+    for p in preds_filt:
+        image_id, caption = p['image_id'], p['caption']
+        imgToEval[image_id]['caption'] = caption
 
     if len(preds_n) > 0:
         from . import eval_multi
@@ -246,11 +228,7 @@ def eval_split(model, crit, loader, eval_kwargs={}):
                 if eval_kwargs.get('dump_path', 0) == 1:
                     entry['file_name'] = data['infos'][k]['file_path']
                 predictions.append(entry)
-                if eval_kwargs.get('dump_images', 0) == 1:
-                    # dump the raw image to vis/ folder
-                    cmd = 'cp "' + os.path.join(eval_kwargs['image_root'], data['infos'][k]['file_path']) + '" vis/imgs/img' + str(len(predictions)) + '.jpg' # bit gross
-                    print(cmd)
-                    os.system(cmd)
+
 
                 if verbose:
                     print('image %s: %s' %(entry['image_id'], entry['caption']))

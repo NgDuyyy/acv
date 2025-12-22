@@ -34,7 +34,7 @@ Trích xuất đặc trưng bottom-up từ ảnh sử dụng Faster R-CNN.
     *(Lưu ý: Cần cấu hình đúng đường dẫn ảnh và output trong script hoặc qua tham số nếu có)*
 
 *   **Input:** Ảnh trong `data/train`, `data/val`, `data/test`.
-*   **Output:** Các file `.tsv` được lưu trong `result/features_tsv/`.
+*   **Output:** Các file `.tsv` được lưu trong `data/features/features_tsv/`.
 
 ### Bước 2: Định dạng đặc trưng (Feature Formatting)
 
@@ -44,8 +44,8 @@ Chuyển đổi file TSV sang định dạng `.npy` để huấn luyện nhanh h
     ```bash
     python scripts/make_bu_data.py
     ```
-*   **Input:** Các file `.tsv` trong `result/features_tsv/`.
-*   **Output:** Các thư mục `att`, `fc`, `box` bên trong `data/train/`, `data/val/`, `data/test/`.
+*   **Input:** Các file `.tsv` trong `data/features/features_tsv/`.
+*   **Output:** Các thư mục `features_extracted_att`, `features_extracted_fc`, `features_extracted_box` bên trong `data/features`.
 
 ### Bước 3: Chuẩn bị dữ liệu huấn luyện (Data Preparation)
 
@@ -58,7 +58,7 @@ Gộp và xử lý file annotation từ các tập train/val thành một file J
     *(Lưu ý: Kiểm tra và sửa đường dẫn `train_path`, `val_path`, `output_path` trong file này nếu cần)*
 
 *   **Input:** `data/train/train_data.json`, `data/val/val_data.json`.
-*   **Output:** `data/LSTM/data.json`.
+*   **Output:** `data/LSTM/data_merged.json`.
 
 ### Bước 4: Tạo file tham chiếu đánh giá (Evaluation Reference)
 
@@ -66,7 +66,7 @@ Tạo file JSON tham chiếu chuẩn cho việc đánh giá (nếu cần thiết
 
 *   **Lệnh chạy:**
     ```bash
-    python scripts/prepro_reference_json.py --input_json data/val/val_data.json --output_json data/val/val_reference.json
+    python scripts/prepro_reference_json.py --input_json data/val/val_data.json --output_json data/LSTM/val_reference.json
     ```
 
 ### Bước 5: Tiền xử lý nhãn (Label Preprocessing)
@@ -75,19 +75,11 @@ Tạo bộ từ điển (vocabulary) và file H5 chứa nhãn đã mã hóa cho 
 
 *   **Lệnh chạy:**
     ```bash
-    python scripts/prepro_labels.py --input_json data/LSTM/data.json --output_json data/LSTM/coco_label.json --output_h5 data/LSTM/coco_label
+    python scripts/prepro_labels.py --input_json data/LSTM/data_merged.json --output_json data/LSTM/data_label.json --output_h5 data/LSTM/data
     ```
-*   **Input:** `data/LSTM/data.json`.
-*   **Output:** `data/LSTM/coco_label.h5` và `data/LSTM/coco_label.json`.
+*   **Input:** `data/LSTM/data_merged.json`.
+*   **Output:** `data/LSTM/data_label.h5` và `data/LSTM/data_label.json`.
 
-### Bước 6: Tính toán N-gram (N-gram Precomputation)
-
-Tính toán trước tần suất n-gram để tăng tốc độ tính toán điểm CIDEr trong quá trình huấn luyện.
-
-*   **Lệnh chạy:**
-    ```bash
-    python scripts/prepro_ngrams.py --input_json data/LSTM/data.json --dict_json data/LSTM/coco_label.json --output_pkl data/LSTM/coco-train --split train
-    ```
 
 ## 3. Huấn luyện (Training)
 
@@ -95,12 +87,13 @@ Huấn luyện mô hình Image Captioning.
 
 *   **Lệnh chạy:**
     ```bash
-    python train.py --id my_run --caption_model updown --input_json data/LSTM/coco_label.json --input_label_h5 data/LSTM/coco_label.h5 --batch_size 10 --learning_rate 5e-4 --checkpoint_path result/checkpoints
+    python train.py --cfg configs/lstm_train.yml
     ```
 *   **Tham số quan trọng:**
     *   `--id`: Tên định danh cho lần chạy này.
     *   `--caption_model`: Loại mô hình (ví dụ: `updown`, `att2in`, `transformer`).
     *   `--checkpoint_path`: Thư mục lưu checkpoint.
+    *   Các tham số được chỉnh trong `configs/lstm_train.yml`.
 *   **Output:**
     *   Checkpoint mô hình: `result/checkpoints/model-best.pth`.
     *   File thông tin huấn luyện: `result/checkpoints/infos_my_run-best.pkl`.
@@ -108,17 +101,33 @@ Huấn luyện mô hình Image Captioning.
 
 ## 4. Đánh giá (Evaluation)
 
-Đánh giá mô hình đã huấn luyện trên tập test và sinh caption.
+Đánh giá mô hình đã huấn luyện trên tập val/test, sinh caption và tính toán các chỉ số (BLEU, CIDEr, SPICE...).
 
 *   **Lệnh chạy:**
     ```bash
-    python complete_image_captioning_pipeline.py caption --dataset_json data/test/test_data.json --feature_path data/test/att --model result/checkpoints/model-best.pth --infos result/checkpoints/infos_my_run-best.pkl
+    python eval.py \
+      --model result/log_lstm/model-best.pth \
+      --infos_path result/log_lstm/infos_-best.pkl \
+      --input_json data/LSTM/val_reference.json \
+      --language_eval_json data/LSTM/val_reference.json \
+      --input_att_dir data/features/features_extracted_att \
+      --split val \
+      --language_eval 1 \
+      --save_csv_results 1 \
+      --predictions_csv result/predictions_val.csv \
+      --metrics_csv result/scores_val.csv
     ```
-    *(Lưu ý: `feature_path` trỏ đến thư mục chứa đặc trưng attention của tập test)*
+
+*   **Giải thích tham số:**
+    *   `--model`, `--infos_path`: Đường dẫn đến checkpoint mô hình và file info.
+    *   `--input_json` & `--language_eval_json`: File JSON chứa danh sách ảnh và caption gốc (Ground Truth).
+    *   `--input_att_dir`: Thư mục chứa features (attention) tương ứng.
+    *   `--language_eval 1`: Bật tính năng chấm điểm ngôn ngữ.
+    *   `--save_csv_results 1`: Bật tính năng lưu kết quả ra file CSV.
 
 *   **Output:**
-    *   Kết quả đánh giá chi tiết (JSON): `result/eval_results/`.
-    *   File dự đoán caption: `result/caption_predictions.csv`.
+    *   **`result/predictions_val.csv`**: Chứa filename, caption gốc và caption dự đoán.
+    *   **`result/scores_val.csv`**: Chứa bảng điểm chi tiết (BLEU-1..4, METEOR, ROUGE_L, CIDEr, SPICE).
 
 ## 5. Full Pipeline
 
@@ -128,6 +137,26 @@ Chạy toàn bộ quy trình từ trích xuất đặc trưng đến sinh captio
     ```bash
     python complete_image_captioning_pipeline.py full --images_dir data/my_new_images --output_root result/my_output --model result/checkpoints/model-best.pth --infos result/checkpoints/infos_my_run-best.pkl
     ```
+
+
+
+## 6. Inference đơn giản
+
+Chạy inference trên một ảnh bất kỳ để kiểm tra nhanh kết quả.
+
+*   **Lệnh chạy:**
+    ```bash
+    python infer.py --image test_image/my_image.jpg --frcnn_model models/feature_extracting/pretrained_model/faster_rcnn_res101_vg.pth --caption_model result/log_lstm/model-best.pth --infos_path result/log_lstm/infos_-best.pkl --gpu
+    ```
+
+*   **Tham số:**
+    *   `--image`: Đường dẫn ảnh cần đặt caption.
+    *   `--frcnn_model`: Đường dẫn đến checkpoint Faster R-CNN (dùng để trích xuất đặc trưng).
+    *   `--caption_model`: Đường dẫn đến checkpoint mô hình Captioning đã train.
+    *   `--infos_path`: Đường dẫn đến file infos.pkl tương ứng với checkpoint.
+    *   `--gpu`: Thêm cờ này để chạy trên GPU (mặc định chạy CPU nếu không có cờ này).
+
+*   **Output:** In trực tiếp caption dự đoán ra màn hình.
 
 ## Ghi chú
 

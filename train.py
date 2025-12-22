@@ -289,26 +289,45 @@ def train(opt):
 
                 # Save model if is improving on validation result
                 if opt.language_eval == 1 and lang_stats is not None:
-                    current_score = lang_stats.get('Bleu_4', lang_stats.get('CIDEr', -val_loss))
+                    current_score = lang_stats.get('CIDEr', lang_stats.get('Bleu_4', -val_loss))
                 else:
                     current_score = - val_loss
-                val_bleu4 = lang_stats.get('Bleu_4', '') if lang_stats is not None else ''
-                if lang_stats is not None and 'Bleu_4' in lang_stats:
-                    print(f"Val BLEU-4: {lang_stats['Bleu_4']:.4f}")
+                val_cider = lang_stats.get('CIDEr', '') if lang_stats is not None else ''
+                if lang_stats is not None:
+                    print("Validation Results:")
+                    for k, v in lang_stats.items():
+                        print(f"  {k}: {v:.4f}")
+
+                # Log per-epoch metrics to CSV when an epoch just finished
+                if epoch_done:
+                    epoch_time = time.time() - epoch_start_time
+                    avg_train_loss = epoch_loss_sum / max(epoch_loss_count, 1)
+                    if not csv_header_written:
+                        with open(csv_log_path, 'w', newline='') as f:
+                            writer = csv.writer(f)
+                            writer.writerow(['epoch', 'epoch_time_sec', 'train_loss', 'val_loss', 'val_cider'])
+                        csv_header_written = True
+                    with open(csv_log_path, 'a', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerow([epoch, epoch_time, avg_train_loss, val_loss, val_cider])
+                    print(f"Saved CSV log to {csv_log_path}")
+                    # reset epoch accumulators
+                    epoch_start_time = time.time()
+                    epoch_loss_sum = 0.0
+                    epoch_loss_count = 0
 
                 best_flag = False
 
                 if best_val_score is None or current_score > best_val_score:
                     best_val_score = current_score
                     best_flag = True
-                # Early stopping on validation loss
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
+                # Early stopping on CIDEr (best_flag indicates improvement)
+                if best_flag:
                     patience_counter = 0
-                    print(f"[EarlyStop] Improved val_loss to {val_loss:.4f}. Reset patience.")
+                    print(f"[EarlyStop] Improved score (CIDEr) to {current_score:.4f}. Reset patience.")
                 else:
                     patience_counter += 1
-                    print(f"[EarlyStop] No val_loss improvement ({patience_counter}/{early_stop_patience}).")
+                    print(f"[EarlyStop] No score improvement ({patience_counter}/{early_stop_patience}).")
                     if patience_counter >= early_stop_patience:
                         print("[EarlyStop] Patience exceeded. Stopping training.")
                         utils.save_checkpoint(opt, model, infos, optimizer, histories)
@@ -324,23 +343,7 @@ def train(opt):
 
                 if best_flag:
                     utils.save_checkpoint(opt, model, infos, optimizer, append='best')
-                # Log per-epoch metrics to CSV when an epoch just finished
-                if epoch_done:
-                    epoch_time = time.time() - epoch_start_time
-                    avg_train_loss = epoch_loss_sum / max(epoch_loss_count, 1)
-                    if not csv_header_written:
-                        with open(csv_log_path, 'w', newline='') as f:
-                            writer = csv.writer(f)
-                            writer.writerow(['epoch', 'epoch_time_sec', 'train_loss', 'val_loss', 'val_bleu4'])
-                        csv_header_written = True
-                    with open(csv_log_path, 'a', newline='') as f:
-                        writer = csv.writer(f)
-                        writer.writerow([epoch, epoch_time, avg_train_loss, val_loss, val_bleu4])
-                    print(f"Saved CSV log to {csv_log_path}")
-                    # reset epoch accumulators
-                    epoch_start_time = time.time()
-                    epoch_loss_sum = 0.0
-                    epoch_loss_count = 0
+
 
     except (RuntimeError, KeyboardInterrupt):
         print('Save ckpt on exception ...')

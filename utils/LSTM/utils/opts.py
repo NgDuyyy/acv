@@ -165,8 +165,7 @@ def parse_opt():
                     help='directory to store checkpointed models')
     parser.add_argument('--language_eval', type=int, default=1,
                     help='Evaluate language as well (1 = yes, 0 = no)? BLEU/CIDEr/METEOR/ROUGE_L? requires coco-caption code from Github.')
-    parser.add_argument('--language_eval_bleu_only', type=int, default=0,
-                    help='If 1, only compute BLEU-4 during language evaluation to save time.')
+
     parser.add_argument('--language_eval_json', type=str, default='',
                     help='Optional path to a reference JSON (COCO style) used for language evaluation. Defaults to input_json when empty.')
     parser.add_argument('--losses_log_every', type=int, default=25,

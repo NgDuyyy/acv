@@ -90,7 +90,7 @@ def parse_args():
                         default='res101', type=str)
     parser.add_argument('--load_dir', dest='load_dir',
                         help='directory to load models',
-                        default="result/models")
+                        default="models/feature_extracting/pretrained_model")
     parser.add_argument('--cuda', dest='cuda',
                         help='whether use CUDA',
                         action='store_true')
@@ -102,13 +102,13 @@ def parse_args():
                         default="images")
     parser.add_argument('--classes_dir', dest='classes_dir',
                         help='directory to load object classes for classification',
-                        default="data/feature_extracting/genome/1600-400-20")
+                        default="models/feature_extracting/pretrained_model")
     parser.add_argument('--out', dest='outfile',
                         help='output filepath',
                         default=None, type=str)
     parser.add_argument('--cfg', dest='cfg_file',
                         help='optional config file',
-                        default='cfgs/res101.yml', type=str)
+                        default='models/feature_extracting/cfgs/res101.yml', type=str)
     parser.add_argument('--set', dest='set_cfgs',
                         help='set config keys', default=None,
                         nargs=argparse.REMAINDER)
@@ -438,6 +438,212 @@ def generate_tsv(outfile, image_ids, args):
         classes, fasterRCNN = load_model(args)
         with open(outfile, 'a+') as tsvfile:
             writer = csv.DictWriter(tsvfile, delimiter = '\t', fieldnames = FIELDNAMES)
+            count = 0
+            for im_file, image_id in tqdm(image_ids, total=len(image_ids), desc=f"Writing {outfile}"):
+                if int(image_id) not in missing:
+                    continue
+                _t['misc'].tic()
+                writer.writerow(get_detections_from_im(fasterRCNN, classes, im_file, image_id, args))
+                _t['misc'].toc()
+                count += 1
+                if (count % 1000) == 0:
+                    eta_hrs = _t['misc'].average_time * (len(missing) - count) / 3600 if count < len(missing) else 0
+                    print('{:d}/{:d} {:.3f}s (projected finish: {:.2f} hours)'.format(
+                        count, len(missing), _t['misc'].average_time, eta_hrs))
+    with torch.no_grad():
+            im_data.resize_(im_data_pt.size()).copy_(im_data_pt)
+            im_info.resize_(im_info_pt.size()).copy_(im_info_pt)
+            gt_boxes.resize_(1, 1, 5).zero_()
+            num_boxes.resize_(1).zero_()
+    # pdb.set_trace()
+    det_tic = time.time()
+
+    # the region features[box_num * 2048] are required.
+    rois, cls_prob, bbox_pred, \
+    rpn_loss_cls, rpn_loss_box, \
+    RCNN_loss_cls, RCNN_loss_bbox, \
+    rois_label, pooled_feat = fasterRCNN(im_data, im_info, gt_boxes, num_boxes, pool_feat = True)
+
+    scores = cls_prob.data
+    boxes = rois.data[:, :, 1:5]
+
+    if cfg.TEST.BBOX_REG:
+        # Apply bounding-box regression deltas
+        box_deltas = bbox_pred.data
+        if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
+        # Optionally normalize targets by a precomputed mean and stdev
+          if args.class_agnostic:
+              if args.cuda > 0:
+                  box_deltas = box_deltas.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
+                             + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
+              else:
+                  box_deltas = box_deltas.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS) \
+                             + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS)
+
+              box_deltas = box_deltas.view(1, -1, 4)
+          else:
+              if args.cuda > 0:
+                  box_deltas = box_deltas.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
+                             + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
+              else:
+                  box_deltas = box_deltas.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS) \
+                             + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS)
+              box_deltas = box_deltas.view(1, -1, 4 * len(classes))
+
+        pred_boxes = bbox_transform_inv(boxes, box_deltas, 1)
+        pred_boxes = clip_boxes(pred_boxes, im_info.data, 1)
+    else:
+        # Simply repeat the boxes, once for each class
+        pred_boxes = np.tile(boxes, (1, scores.shape[1]))
+
+    pred_boxes /= im_scales[0]
+
+    scores = scores.squeeze()
+    pred_boxes = pred_boxes.squeeze()
+
+    det_toc = time.time()
+    detect_time = det_toc - det_tic
+    misc_tic = time.time()
+
+    max_conf = torch.zeros((pred_boxes.shape[0]), device=scores.device)
+
+    if vis:
+        im2show = np.copy(im)
+    for j in xrange(1, len(classes)):
+        inds = torch.nonzero(scores[:,j]>conf_thresh).view(-1)
+        # if there is det
+        if inds.numel() > 0:
+          cls_scores = scores[:,j][inds]
+          _, order = torch.sort(cls_scores, 0, True)
+          if args.class_agnostic:
+            cls_boxes = pred_boxes[inds, :]
+          else:
+            cls_boxes = pred_boxes[inds][:, j * 4:(j + 1) * 4]
+
+          cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1)), 1)
+          # cls_dets = torch.cat((cls_boxes, cls_scores), 1)
+          cls_dets = cls_dets[order]
+          # keep = nms(cls_dets, cfg.TEST.NMS, force_cpu=not cfg.USE_GPU_NMS)
+          keep = tv_nms(cls_boxes[order, :], cls_scores[order], cfg.TEST.NMS)
+          cls_dets = cls_dets[keep.view(-1).long()]
+          index = inds[order[keep]]
+          max_conf[index] = torch.where(scores[index, j] > max_conf[index], scores[index, j], max_conf[index])
+          if vis:
+            im2show = vis_detections(im2show, classes[j], cls_dets.cpu().numpy(), 0.5)
+
+    keep_mask = torch.where(max_conf >= conf_thresh,
+                            max_conf,
+                            torch.tensor(0.0, device=max_conf.device))
+    keep_boxes = torch.nonzero(keep_mask, as_tuple=False).view(-1)
+    if keep_boxes.numel() < MIN_BOXES:
+        keep_boxes = torch.argsort(max_conf, descending=True)[:MIN_BOXES]
+    elif keep_boxes.numel() > MAX_BOXES:
+        keep_boxes = torch.argsort(max_conf, descending=True)[:MAX_BOXES]
+
+    objects = torch.argmax(scores[keep_boxes][:,1:], dim=1)
+    box_dets = np.zeros((len(keep_boxes), 4))
+    boxes = pred_boxes[keep_boxes]
+    for i in range(len(keep_boxes)):
+        kind = objects[i]+1
+        bbox = boxes[i, kind * 4: (kind + 1) * 4]
+        box_dets[i] = np.array(bbox.cpu())
+
+    return {
+        'image_id': image_id,
+        'image_h': np.size(im, 0),
+        'image_w': np.size(im, 1),
+        'num_boxes': len(keep_boxes),
+        'boxes': base64.b64encode(box_dets),
+        'features': base64.b64encode((pooled_feat[keep_boxes].cpu()).detach().numpy())
+    }
+
+def load_model(args):
+    # set cfg according to the dataset used to train the pre-trained model
+    if args.dataset == "pascal_voc":
+      args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
+    elif args.dataset == "pascal_voc_0712":
+        args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
+    elif args.dataset == "coco":
+        args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
+    elif args.dataset == "imagenet":
+        args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
+    elif args.dataset == "vg":
+        args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
+
+    if args.cfg_file is not None:
+      cfg_from_file(args.cfg_file)
+    if args.set_cfgs is not None:
+      cfg_from_list(args.set_cfgs)
+
+    cfg.USE_GPU_NMS = args.cuda
+
+    print('Using config:')
+    pprint.pprint(cfg)
+    np.random.seed(cfg.RNG_SEED)
+
+    # Load classes
+    classes = ['__background__']
+    with open(os.path.join(args.classes_dir, 'objects_vocab.txt')) as f:
+        for object in f.readlines():
+            classes.append(object.split(',')[0].lower().strip())
+
+    if not os.path.exists(args.load_dir):
+        raise Exception('There is no input directory for loading network from ' + args.load_dir)
+    load_name = os.path.join(args.load_dir, 'faster_rcnn_{}_{}.pth'.format(args.net, args.dataset))
+
+    # initilize the network here. the network used to train the pre-trained model
+    if args.net == 'vgg16':
+      fasterRCNN = vgg16(classes, pretrained=False, class_agnostic=args.class_agnostic)
+    elif args.net == 'res101':
+      fasterRCNN = resnet(classes, 101, pretrained=False, class_agnostic=args.class_agnostic)
+    elif args.net == 'res50':
+      fasterRCNN = resnet(classes, 50, pretrained=False, class_agnostic=args.class_agnostic)
+    elif args.net == 'res152':
+      fasterRCNN = resnet(classes, 152, pretrained=False, class_agnostic=args.class_agnostic)
+    else:
+      print("network is not defined")
+      pdb.set_trace()
+
+    fasterRCNN.create_architecture()
+
+    print("load checkpoint %s" % (load_name))
+    if args.cuda > 0:
+      checkpoint = torch.load(load_name)
+    else:
+      checkpoint = torch.load(load_name, map_location=(lambda storage, loc: storage))
+    fasterRCNN.load_state_dict(checkpoint['model'])
+    if 'pooling_mode' in checkpoint.keys():
+      cfg.POOLING_MODE = checkpoint['pooling_mode']
+
+    print('load model successfully!')
+
+    print("load model %s" % (load_name))
+
+    return classes, fasterRCNN
+
+def generate_tsv(outfile, image_ids, args):
+    # First check if file exists, and if it is complete
+    # image_ids: [image_path, image_id]
+    wanted_ids = set([int(image_id[1]) for image_id in image_ids])
+    found_ids = set()
+    # Ensure destination folder exists
+    out_dir = os.path.dirname(outfile)
+    if out_dir and not os.path.exists(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
+    if os.path.exists(outfile):
+        with open(outfile) as tsvfile:
+            reader = csv.DictReader(tsvfile, delimiter='\t', fieldnames = FIELDNAMES)
+            for item in reader:
+                found_ids.add(int(item['image_id']))
+    missing = wanted_ids - found_ids
+    if len(missing) == 0:
+        print ('Already completed {:d}'.format(len(image_ids)))
+    else:
+        print ('Missing {:d}/{:d}'.format(len(missing), len(image_ids)))
+    if len(missing) > 0:
+        classes, fasterRCNN = load_model(args)
+        with open(outfile, 'a+') as tsvfile:
+            writer = csv.DictWriter(tsvfile, delimiter = '\t', fieldnames = FIELDNAMES)
             _t = {'misc' : Timer()}
             count = 0
             for im_file, image_id in tqdm(image_ids, total=len(image_ids), desc=f"Writing {outfile}"):
@@ -460,18 +666,32 @@ if __name__ == '__main__':
 
     # Tùy chỉnh đường dẫn ảnh cho train/val/test
     import glob
+    import re
     def collect_ids(img_dir, start_id=0):
         files = sorted(glob.glob(os.path.join(img_dir, "*.jpg")))
-        return [[f, start_id + i] for i, f in enumerate(files)], start_id + len(files)
+        ids = []
+        for f in files:
+            # Extract ID from filename (e.g. 000000123456.jpg -> 123456)
+            base = os.path.basename(f)
+            name, _ = os.path.splitext(base)
+            # Find all digit sequences, take the last one as ID
+            digits = re.findall(r'\d+', name)
+            if digits:
+                real_id = int(digits[-1])
+                ids.append([f, real_id])
+            else:
+                # Fallback if no digits found (unlikely for COCO)
+                print(f"Warning: No ID found in {f}, skipping.")
+        return ids, 0
 
     train_dir = r"data/train/train_images"
     val_dir   = r"data/val/val_images"
-    test_dir  = r"data/test/test_images"
+    # test_dir  = r"data/test/test_images"  <-- Commented out
 
-    train_ids, sid = collect_ids(train_dir, start_id=1)
-    val_ids, sid   = collect_ids(val_dir, start_id=sid)
-    test_ids, _    = collect_ids(test_dir, start_id=sid)
+    train_ids, _ = collect_ids(train_dir)
+    val_ids, _   = collect_ids(val_dir)
+    # test_ids, _    = collect_ids(test_dir)  <-- Commented out
 
-    generate_tsv("./features/train.tsv", train_ids, args)
-    generate_tsv("./features/val.tsv",   val_ids,   args)
-    generate_tsv("./features/test.tsv",  test_ids,  args)
+    generate_tsv("data/features/features_tsv/train.tsv", train_ids, args)
+    generate_tsv("data/features/features_tsv/val.tsv",   val_ids,   args)
+    # generate_tsv("data/features/features_tsv/test.tsv",  test_ids,  args)  <-- Commented out

@@ -15,22 +15,33 @@ import argparse
 parser = argparse.ArgumentParser()
 
 # output_dir
-parser.add_argument('--downloaded_feats', default=r'D:\HUS_final_year\AdvancedCV\project\proj\data\feature_extracting\features', help='downloaded feature directory')
-parser.add_argument('--output_dir', default=r'D:\HUS_final_year\AdvancedCV\project\proj\data\feature_extracting\features', help='output feature files')
+parser.add_argument('--downloaded_feats', default=r'data/features/features_tsv', help='downloaded feature directory')
+parser.add_argument('--output_dir', default=r'data/features/features_extracted', help='output feature files')
 
 args = parser.parse_args()
 
-csv.field_size_limit(sys.maxsize)
+# Fix for OverflowError: Python int too large to convert to C long
+# On Windows, sys.maxsize can be larger than what C long supports
+max_int = sys.maxsize
+while True:
+    try:
+        csv.field_size_limit(max_int)
+        break
+    except OverflowError:
+        max_int = int(max_int/10)
 
 
 FIELDNAMES = ['image_id', 'image_w','image_h','num_boxes', 'boxes', 'features']
 infiles = [
-    'train.tsv','val.tsv','test.tsv'
+    'train.tsv', 'val.tsv'
 ]
 
-os.makedirs(args.output_dir+'_att')
-os.makedirs(args.output_dir+'_fc')
-os.makedirs(args.output_dir+'_box')
+if not os.path.exists(args.output_dir + '_att'):
+    os.makedirs(args.output_dir + '_att')
+if not os.path.exists(args.output_dir + '_fc'):
+    os.makedirs(args.output_dir + '_fc')
+if not os.path.exists(args.output_dir + '_box'):
+    os.makedirs(args.output_dir + '_box')
 
 for infile in infiles:
     print('Reading ' + infile)

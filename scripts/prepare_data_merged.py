@@ -4,9 +4,11 @@ import string
 
 # --- CẤU HÌNH ĐƯỜNG DẪN ---
 # Bạn hãy sửa lại đường dẫn trỏ đến file chứa captions thực tế của bạn
-train_path = r'D:/HUS_final_year/AdvancedCV/project/proj/data/train/train_data.json'
-val_path = r'D:/HUS_final_year/AdvancedCV/project/proj/data/val/val_data.json'
-output_path = r'D:/HUS_final_year/AdvancedCV/project/proj/data/LSTM/data.json'
+# --- CẤU HÌNH ĐƯỜNG DẪN ---
+# Bạn hãy sửa lại đường dẫn trỏ đến file chứa captions thực tế của bạn
+train_path = r'data/train/train_data.json'
+val_path = r'data/val/val_data.json'
+output_path = r'data/LSTM/data_merged.json'
 
 # Hàm tách từ (giữ nguyên)
 def tokenize(s):
