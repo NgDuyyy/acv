@@ -43,7 +43,16 @@ def process_split(file_path, split_name):
         # --- QUAN TRỌNG: XỬ LÝ ID ---
         # Ưu tiên lấy 'id' gốc, nếu không có thì lấy 'cocoid' hoặc 'imgid'
         img_id = img.get('id', img.get('cocoid', img.get('imgid')))
-        
+        original_raw_id = img_id # Keep original for lookup
+
+        # --- FIX: ADD OFFSET TO AVOID DUPLICATES ---
+        if split_name == 'val':
+             if img_id is not None: img_id = int(img_id) + 1000000
+        elif split_name == 'test':
+             if img_id is not None: img_id = int(img_id) + 2000000
+        else:
+             if img_id is not None: img_id = int(img_id)
+
         if img_id is None:
             print(f"⚠️ Ảnh {img.get('filename', 'unknown')} không có ID! Bỏ qua.")
             continue
@@ -51,6 +60,7 @@ def process_split(file_path, split_name):
         # Tạo object ảnh mới chuẩn format
         new_img = {
             'id': img_id,
+
             'file_path': img.get('filename', img.get('file_path', '')),
             'split': split_name,
             'sentences': []
@@ -62,8 +72,9 @@ def process_split(file_path, split_name):
             captions.append(img['caption'])
         elif 'captions' in img:
             captions.extend(img['captions'])
-        elif img_id in img_to_captions:
-            captions.extend(img_to_captions[img_id])
+        # Use original_raw_id (without offset) for lookup
+        elif original_raw_id in img_to_captions:
+            captions.extend(img_to_captions[original_raw_id])
             
         # Tokenize
         for cap in captions:

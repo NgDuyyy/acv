@@ -686,12 +686,12 @@ if __name__ == '__main__':
 
     train_dir = r"data/train/train_images"
     val_dir   = r"data/val/val_images"
-    # test_dir  = r"data/test/test_images"  <-- Commented out
+    test_dir  = r"data/test/test_images"
 
     train_ids, _ = collect_ids(train_dir)
     val_ids, _   = collect_ids(val_dir)
-    # test_ids, _    = collect_ids(test_dir)  <-- Commented out
+    test_ids, _  = collect_ids(test_dir)
 
     generate_tsv("data/features/features_tsv/train.tsv", train_ids, args)
     generate_tsv("data/features/features_tsv/val.tsv",   val_ids,   args)
-    # generate_tsv("data/features/features_tsv/test.tsv",  test_ids,  args)  <-- Commented out
+    generate_tsv("data/features/features_tsv/test.tsv",  test_ids,  args)  

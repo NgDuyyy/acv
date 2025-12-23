@@ -33,7 +33,7 @@ while True:
 
 FIELDNAMES = ['image_id', 'image_w','image_h','num_boxes', 'boxes', 'features']
 infiles = [
-    'train.tsv', 'val.tsv'
+    'train.tsv', 'val.tsv', 'test.tsv'
 ]
 
 if not os.path.exists(args.output_dir + '_att'):
@@ -47,8 +47,16 @@ for infile in infiles:
     print('Reading ' + infile)
     with open(os.path.join(args.downloaded_feats, infile), "r") as tsv_in_file:
         reader = csv.DictReader(tsv_in_file, delimiter='\t', fieldnames = FIELDNAMES)
+        
+        # Determine offset based on filename
+        offset = 0
+        if 'val' in infile:
+            offset = 1000000
+        elif 'test' in infile:
+            offset = 2000000
+
         for item in reader:
-            item['image_id'] = int(item['image_id'])
+            item['image_id'] = int(item['image_id']) + offset
             item['num_boxes'] = int(item['num_boxes'])
             # for field in ['boxes', 'features']:
             #     item[field] = np.frombuffer(base64.decodebytes(item[field].encode('ascii')), 

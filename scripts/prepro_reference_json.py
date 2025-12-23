@@ -38,14 +38,22 @@ def main(params):
         for img in imgs:
             if img.get('split', '') == 'train':
                 continue
-            out['images'].append({'id': img['id']})
+            # -- FIX: Add offset for Val (COCO style) --
+            # Assuming we are processing val set
+            new_id = int(img['id']) + 1000000
+            out['images'].append({'id': new_id})
             
         # Filter annotations for the selected images
-        valid_img_ids = set(img['id'] for img in out['images'])
+        # We need to map original ID to new ID for annotations
+        # But wait, annotations have 'image_id' pointing to the original ID.
+        # We must update annotation 'image_id' as well!
+        
+        valid_img_ids_map = {img['id']: (int(img['id']) + 1000000) for img in imgs if img.get('split', '') != 'train'}
+        
         for ann in anns:
-            if ann['image_id'] in valid_img_ids:
+            if ann['image_id'] in valid_img_ids_map:
                 out['annotations'].append({
-                    'image_id': ann['image_id'],
+                    'image_id': valid_img_ids_map[ann['image_id']],
                     'caption': ann['caption'],
                     'id': ann['id']
                 })
@@ -58,6 +66,11 @@ def main(params):
             if img.get('split', '') == 'train':
                 continue
             img_id = img.get('cocoid', img.get('imgid', img.get('id')))
+            
+            # --- FIX: ADD OFFSET FOR VALIDATION ---
+            # Assuming this script is run on val_data.json
+            img_id = int(img_id) + 1000000
+
             if img_id is None:
                 raise KeyError(f"Image entry missing id fields: {img}")
             out['images'].append({'id': img_id})
