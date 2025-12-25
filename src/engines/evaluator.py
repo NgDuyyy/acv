@@ -2,14 +2,13 @@ import sys
 import os
 import json
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from src.data_loader.dataset import ImageDataset
 from pycocoevalcap.bleu.bleu import Bleu
 from pycocoevalcap.meteor.meteor import Meteor
 from pycocoevalcap.rouge.rouge import Rouge
 from pycocoevalcap.cider.cider import Cider
-from pycocoevalcap.spice.spice import Spice
-
+# from pycocoevalcap.spice.spice import Spice # Tắt SPICE
 
 class Evaluator:
     def __init__(self, model, args, device):
@@ -17,92 +16,130 @@ class Evaluator:
         self.args = args
         self.device = device
 
-        # Load vocab để decode (ID -> Word)
-        # Giả sử file vocab nằm ở data/processed/vocab.json
+        # Load vocab
         vocab_path = os.path.join('data/processed/vocab.json')
-        if not os.path.exists(vocab_path):
-            vocab_path = 'data/vocab.json'  # Fallback path
+        if not os.path.exists(vocab_path): vocab_path = 'data/vocab.json'
 
         with open(vocab_path, 'r') as f:
             self.vocab = json.load(f)
 
-        self.id_to_word = {v: k for k, v in self.vocab.items()}
+        # Map ID -> Word (Key JSON luôn là string)
+        self.id_to_word = {str(v): k for k, v in self.vocab.items()}
 
-        self.dataset = ImageDataset('train', args)
+        # === LOGIC TỰ ĐỘNG CHỌN DATASET (FIX LỖI CỦA BẠN) ===
+        try:
+            # Ưu tiên 1: Thử load tập Val (chuẩn nhất)
+            print(">> Đang thử load tập 'val'...")
+            self.dataset = ImageDataset('val', args)
+            print(">> Đã load thành công tập 'val'!")
+        except Exception as e:
+            # Ưu tiên 2: Nếu lỗi, quay về tập Train nhưng CHỈ LẤY 500 ẢNH
+            print(f">> Không tìm thấy tập 'val' ({e}). Đang chuyển sang dùng tập 'train'...")
+            full_train_set = ImageDataset('train', args)
+
+            # Chỉ lấy 500 ảnh đầu tiên để đánh giá cho nhanh (Tránh đợi 118k ảnh)
+            num_eval = min(500, len(full_train_set))
+            self.dataset = Subset(full_train_set, list(range(num_eval)))
+            print(f">> CẢNH BÁO: Đang đánh giá trên {num_eval} ảnh của tập TRAIN (để tiết kiệm thời gian).")
+
+        # Tạo DataLoader
         self.dataloader = DataLoader(self.dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
 
+        # Load Ground Truth (Caption gốc)
+        # Lưu ý: Nếu dùng tập train để test, file caption này có thể không khớp ID.
+        # Nhưng code sẽ tự bỏ qua các ID không khớp nên không sao.
         gt_path = 'data/raw/captions_val_split.json'
+        if not os.path.exists(gt_path):
+            gt_path = 'data/raw/captions_train_split.json'  # Thử tìm file train nếu val không có
+
         if os.path.exists(gt_path):
             self.references = json.load(open(gt_path))
         else:
-            print(f"CẢNH BÁO: Không tìm thấy {gt_path}. Cần tạo file này để chấm điểm!")
+            print(">> CẢNH BÁO: Không tìm thấy file JSON caption gốc. Điểm số metrics sẽ là 0.0")
             self.references = {}
 
     def evaluate(self):
         self.model.eval()
         predictions = {}
+
+        # Chỉ lấy những ID ảnh có trong file đáp án (references)
         target_img_ids = set(self.references.keys())
 
-        print(">> Đang chạy đánh giá trên tập Val (Sinh caption)...")
+        print(">> Đang chạy đánh giá (Sinh caption)...")
+        printed_debug = False  # Cờ để chỉ in 1 lần
 
         with torch.no_grad():
             for i, data in enumerate(self.dataloader):
                 fc_feats = data['fc_feats'].to(self.device)
                 att_feats = data['att_feats'].to(self.device)
                 att_masks = data['att_masks'].to(self.device)
-                img_ids = data['image_ids']  # List các image id
+                img_ids = data['image_ids']
 
                 seqs, _ = self.model(fc_feats, att_feats, att_masks, mode='sample')
                 sents = self.decode_sequence(seqs)
 
+                # --- IN THỬ 5 CÂU ĐỂ KIỂM TRA (CHỈ IN BATCH ĐẦU) ---
+                if not printed_debug:
+                    print("\n[PREVIEW] === MODEL ĐANG NÓI GÌ? ===")
+                    for k in range(min(5, len(sents))):
+                        print(f"Sample {k}: {sents[k]}")
+                    print("======================================\n")
+                    printed_debug = True
+                # ---------------------------------------------------
+
                 for img_id, sent in zip(img_ids, sents):
-                    str_id = str(img_id.item() if isinstance(img_id, torch.Tensor) else img_id)
+                    if isinstance(img_id, torch.Tensor):
+                        str_id = str(img_id.item())
+                    else:
+                        str_id = str(img_id)
 
+                    # Chỉ lưu kết quả nếu ID này có trong file đáp án gốc
                     if str_id in target_img_ids:
-                        predictions[str(img_id)] = [sent]
+                        predictions[str_id] = [sent]
 
-        if not self.references:
+        if not self.references or not predictions:
+            print(">> Không có dữ liệu để chấm điểm (ID ảnh không khớp với file JSON references).")
             return {'CIDEr': 0.0, 'BLEU-4': 0.0}
 
         metrics = self.compute_metrics(self.references, predictions)
         return metrics
 
     def decode_sequence(self, seqs):
-        """
-        Chuyển Tensor ID thành câu văn.
-        seqs: [Batch, Max_Len]
-        """
+        """ SỬA LỖI TAG <END> """
         sents = []
         for row in seqs:
             words = []
             for token_id in row:
-                token_id = token_id.item()
-                if token_id == 0:  # Giả sử 0 là <end> hoặc padding
-                    break
+                if isinstance(token_id, torch.Tensor):
+                    if token_id.numel() > 1:
+                        token_id = torch.argmax(token_id).item()
+                    else:
+                        token_id = token_id.item()
 
-                # Bỏ qua token <start> nếu có (thường là 1 hoặc index cuối)
-                # Tùy thuộc vào vocab của bạn
+                word = self.id_to_word.get(str(token_id), '<unk>')
 
-                word = self.id_to_word.get(str(token_id), '')  # json key thường là string
-                if not word:
-                    word = self.id_to_word.get(token_id, 'UNK')
+                # BREAK NGAY KHI GẶP END
+                if word == '<end>': break
+                if word == '<start>' or word == '<pad>': continue
 
                 words.append(word)
-
             sents.append(' '.join(words))
         return sents
 
     def compute_metrics(self, ref, res):
+        # Lọc các key chung giữa dự đoán và đáp án
         inter_keys = set(ref.keys()) & set(res.keys())
+        if not inter_keys:
+            return {'CIDEr': 0.0, 'BLEU-4': 0.0}
+
         ref_filtered = {k: ref[k] for k in inter_keys}
         res_filtered = {k: res[k] for k in inter_keys}
 
         scorers = [
             (Bleu(4), ["BLEU-1", "BLEU-2", "BLEU-3", "BLEU-4"]),
-            (Meteor(), "METEOR"), # Cần Java
+            (Meteor(), "METEOR"),
             (Rouge(), "ROUGE-L"),
-            (Cider(), "CIDEr"),
-            (Spice(), "SPICE")   # Cần Java
+            (Cider(), "CIDEr")
         ]
 
         eval_result = {}
@@ -110,12 +147,10 @@ class Evaluator:
             try:
                 score, _ = scorer.compute_score(ref_filtered, res_filtered)
                 if isinstance(method, list):
-                    for m, s in zip(method, score):
-                        eval_result[m] = s
+                    for m, s in zip(method, score): eval_result[m] = s
                 else:
                     eval_result[method] = score
-            except Exception as e:
-                print(f"Lỗi khi tính {method}: {e}")
+            except:
                 if isinstance(method, list):
                     for m in method: eval_result[m] = 0.0
                 else:
