@@ -69,7 +69,7 @@ class Evaluator:
                 sents = self.decode_sequence(seqs)
 
                 if not printed_debug:
-                    print("\n[PREVIEW] === MODEL ĐANG NÓI GÌ? ===")
+                    print("\n[PREVIEW] === Caption Prediction ===")
                     for k in range(min(5, len(sents))):
                         print(f"Sample {k}: {sents[k]}")
                     print("======================================\n")
