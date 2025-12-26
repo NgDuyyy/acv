@@ -6,6 +6,7 @@ import pickle
 from collections import Counter, defaultdict
 from tqdm import tqdm
 
+# ================= CẤU HÌNH =================
 INPUT_JSON = 'data/raw/captions.json'
 OUTPUT_DIR = 'data/processed'
 MIN_WORD_FREQ = 5
@@ -14,6 +15,7 @@ SEED = 42
 MAX_LEN = 50
 
 
+# ============================================
 
 def build_vocab(captions, threshold):
     print(">> Đang thống kê tần suất từ (chỉ trên tập Train)...")
@@ -73,36 +75,44 @@ def main():
 
     # Chia 80:20
     split_idx = int(len(all_img_ids) * (1 - VAL_RATIO))
-    train_ids = all_img_ids[:split_idx]
-    val_ids = all_img_ids[split_idx:]
+    train_ids_unique = all_img_ids[:split_idx]  # ID duy nhất
+    val_ids_unique = all_img_ids[split_idx:]  # ID duy nhất
 
-    print(f">> Train set: {len(train_ids)} ảnh")
-    print(f">> Val set:   {len(val_ids)} ảnh")
+    print(f">> Train set (Unique Images): {len(train_ids_unique)} ảnh")
+    print(f">> Val set (Unique Images):   {len(val_ids_unique)} ảnh")
 
     # ================= XỬ LÝ TẬP TRAIN =================
     print("\n=== ĐANG XỬ LÝ TẬP TRAIN ===")
 
     train_captions_flat = []
+    train_img_ids_expanded = []  # <--- KEY FIX: Danh sách ID lặp lại theo caption
     train_refs_dict = {}
 
-    for img_id in train_ids:
+    # Vòng lặp quan trọng: Bung dữ liệu ra (Flatten)
+    for img_id in train_ids_unique:
         caps = grouped_data[img_id]
         train_refs_dict[img_id] = caps
-        train_captions_flat.extend(caps)
 
-    # 1. Xây Vocab (CHỈ TỪ TRAIN)
+        for c in caps:
+            train_captions_flat.append(c)
+            train_img_ids_expanded.append(img_id)  # Caption có bao nhiêu, ID có bấy nhiêu
+
+    print(f">> Số lượng mẫu train sau khi mở rộng (1 ảnh N caption): {len(train_img_ids_expanded)}")
+
+    # 1. Xây Vocab
     vocab = build_vocab(train_captions_flat, MIN_WORD_FREQ)
     with open(os.path.join(OUTPUT_DIR, 'vocab.json'), 'w', encoding='utf-8') as f:
         json.dump(vocab, f, ensure_ascii=False)
 
-    # 2. Lưu train_images.npy (ID ảnh)
-    np.save(os.path.join(OUTPUT_DIR, 'train_images.npy'), train_ids)
+    # 2. Lưu train_images.npy (LƯU BẢN EXPANDED)
+    # Lúc này len(train_images) == len(train_labels) -> Dataset không bị lỗi nữa
+    np.save(os.path.join(OUTPUT_DIR, 'train_images.npy'), train_img_ids_expanded)
 
     # 3. Mã hóa train labels
     train_labels = encode_captions(train_captions_flat, vocab, MAX_LEN)
     np.save(os.path.join(OUTPUT_DIR, 'train_labels.npy'), train_labels)
 
-    # 4. Lưu train_ref.pkl (Bắt buộc cho RL)
+    # 4. Lưu train_ref.pkl
     with open(os.path.join(OUTPUT_DIR, 'train_ref.pkl'), 'wb') as f:
         pickle.dump(train_refs_dict, f)
 
@@ -113,31 +123,23 @@ def main():
     # ================= XỬ LÝ TẬP VAL =================
     print("\n=== ĐANG XỬ LÝ TẬP VAL ===")
 
-    val_captions_flat = []
     val_refs_dict = {}
-
-    for img_id in val_ids:
+    for img_id in val_ids_unique:
         caps = grouped_data[img_id]
         val_refs_dict[img_id] = caps
-        val_captions_flat.extend(caps)
 
-    # 1. Lưu val_images.npy (ID ảnh)
-    np.save(os.path.join(OUTPUT_DIR, 'val_images.npy'), val_ids)
+    # 1. Lưu val_images.npy (LƯU BẢN UNIQUE)
+    # Tập Val chủ yếu dùng cho Evaluator, chỉ cần duyệt qua ảnh 1 lần là đủ
+    np.save(os.path.join(OUTPUT_DIR, 'val_images.npy'), val_ids_unique)
 
-    # 2. Lưu val_captions.json (Thay tên captions_val_split.json cho đồng bộ)
-    # File này Evaluator sẽ dùng để tính BLEU/CIDEr
+    # 2. Lưu val_captions.json
     with open(os.path.join(OUTPUT_DIR, 'val_captions.json'), 'w', encoding='utf-8') as f:
         json.dump(val_refs_dict, f, ensure_ascii=False)
 
-    # 3. Lưu val_labels.npy (Bạn hỏi cái này)
-    # Dùng để tính CrossEntropyLoss trên tập Val (nếu muốn check overfitting)
-    val_labels = encode_captions(val_captions_flat, vocab, MAX_LEN)
-    np.save(os.path.join(OUTPUT_DIR, 'val_labels.npy'), val_labels)
+    # (Không tạo val_labels.npy vì Evaluator dùng ImageDataset, ko phải CaptionDataset)
 
-
+    print("\n✅ XONG TOÀN BỘ! ĐÃ FIX LỖI LỆCH DATA.")
     print(f"File output tại: {OUTPUT_DIR}")
-    print("- train_images.npy, train_labels.npy, train_captions.json, train_ref.pkl")
-    print("- val_images.npy, val_labels.npy, val_captions.json")
 
 
 if __name__ == '__main__':

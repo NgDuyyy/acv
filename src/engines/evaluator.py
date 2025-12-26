@@ -8,7 +8,9 @@ from pycocoevalcap.bleu.bleu import Bleu
 from pycocoevalcap.meteor.meteor import Meteor
 from pycocoevalcap.rouge.rouge import Rouge
 from pycocoevalcap.cider.cider import Cider
-# from pycocoevalcap.spice.spice import Spice # Tắt SPICE
+
+
+# from pycocoevalcap.spice.spice import Spice
 
 class Evaluator:
     def __init__(self, model, args, device):
@@ -18,55 +20,43 @@ class Evaluator:
 
         # Load vocab
         vocab_path = os.path.join('data/processed/vocab.json')
-        if not os.path.exists(vocab_path): vocab_path = 'data/vocab.json'
-
         with open(vocab_path, 'r') as f:
             self.vocab = json.load(f)
-
-        # Map ID -> Word (Key JSON luôn là string)
         self.id_to_word = {str(v): k for k, v in self.vocab.items()}
 
-        # === LOGIC TỰ ĐỘNG CHỌN DATASET (FIX LỖI CỦA BẠN) ===
+        # 1. Load Dataset Val (dùng data/processed/val_images.npy)
         try:
-            # Ưu tiên 1: Thử load tập Val (chuẩn nhất)
-            print(">> Đang thử load tập 'val'...")
+            print(">> Evaluator đang load tập 'val'...")
             self.dataset = ImageDataset('val', args)
-            print(">> Đã load thành công tập 'val'!")
         except Exception as e:
-            # Ưu tiên 2: Nếu lỗi, quay về tập Train nhưng CHỈ LẤY 500 ẢNH
-            print(f">> Không tìm thấy tập 'val' ({e}). Đang chuyển sang dùng tập 'train'...")
+            print(f">> Lỗi load tập Val: {e}. Đang chuyển sang train (debug)...")
             full_train_set = ImageDataset('train', args)
+            self.dataset = Subset(full_train_set, list(range(500)))
 
-            # Chỉ lấy 500 ảnh đầu tiên để đánh giá cho nhanh (Tránh đợi 118k ảnh)
-            num_eval = min(500, len(full_train_set))
-            self.dataset = Subset(full_train_set, list(range(num_eval)))
-            print(f">> CẢNH BÁO: Đang đánh giá trên {num_eval} ảnh của tập TRAIN (để tiết kiệm thời gian).")
-
-        # Tạo DataLoader
         self.dataloader = DataLoader(self.dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
 
-        # Load Ground Truth (Caption gốc)
-        # Lưu ý: Nếu dùng tập train để test, file caption này có thể không khớp ID.
-        # Nhưng code sẽ tự bỏ qua các ID không khớp nên không sao.
-        gt_path = 'data/raw/captions_val_split.json'
-        if not os.path.exists(gt_path):
-            gt_path = 'data/raw/captions_train_split.json'  # Thử tìm file train nếu val không có
+
+        gt_path = 'data/processed/val_captions.json'
 
         if os.path.exists(gt_path):
+            print(f">> Đã tìm thấy file đáp án: {gt_path}")
             self.references = json.load(open(gt_path))
         else:
-            print(">> CẢNH BÁO: Không tìm thấy file JSON caption gốc. Điểm số metrics sẽ là 0.0")
-            self.references = {}
+            print(f">> CẢNH BÁO TUYỆT ĐỐI: Không tìm thấy {gt_path}. Metrics sẽ bằng 0!")
+            # Fallback thử tìm file cũ nếu lỡ tay xóa
+            gt_path_old = 'data/raw/captions_val_split.json'
+            if os.path.exists(gt_path_old):
+                self.references = json.load(open(gt_path_old))
+            else:
+                self.references = {}
 
     def evaluate(self):
         self.model.eval()
         predictions = {}
-
-        # Chỉ lấy những ID ảnh có trong file đáp án (references)
         target_img_ids = set(self.references.keys())
 
-        print(">> Đang chạy đánh giá (Sinh caption)...")
-        printed_debug = False  # Cờ để chỉ in 1 lần
+        print(f">> Bắt đầu đánh giá trên {len(self.dataset)} ảnh...")
+        printed_debug = False
 
         with torch.no_grad():
             for i, data in enumerate(self.dataloader):
@@ -78,14 +68,12 @@ class Evaluator:
                 seqs, _ = self.model(fc_feats, att_feats, att_masks, mode='sample')
                 sents = self.decode_sequence(seqs)
 
-                # --- IN THỬ 5 CÂU ĐỂ KIỂM TRA (CHỈ IN BATCH ĐẦU) ---
                 if not printed_debug:
                     print("\n[PREVIEW] === MODEL ĐANG NÓI GÌ? ===")
                     for k in range(min(5, len(sents))):
                         print(f"Sample {k}: {sents[k]}")
                     print("======================================\n")
                     printed_debug = True
-                # ---------------------------------------------------
 
                 for img_id, sent in zip(img_ids, sents):
                     if isinstance(img_id, torch.Tensor):
@@ -93,19 +81,18 @@ class Evaluator:
                     else:
                         str_id = str(img_id)
 
-                    # Chỉ lưu kết quả nếu ID này có trong file đáp án gốc
+                    # Chỉ chấm điểm những ảnh có trong file đáp án
                     if str_id in target_img_ids:
                         predictions[str_id] = [sent]
 
         if not self.references or not predictions:
-            print(">> Không có dữ liệu để chấm điểm (ID ảnh không khớp với file JSON references).")
+            print(">> LỖI: Không có dữ liệu khớp ID để chấm điểm.")
             return {'CIDEr': 0.0, 'BLEU-4': 0.0}
 
         metrics = self.compute_metrics(self.references, predictions)
         return metrics
 
     def decode_sequence(self, seqs):
-        """ SỬA LỖI TAG <END> """
         sents = []
         for row in seqs:
             words = []
@@ -117,20 +104,16 @@ class Evaluator:
                         token_id = token_id.item()
 
                 word = self.id_to_word.get(str(token_id), '<unk>')
-
-                # BREAK NGAY KHI GẶP END
                 if word == '<end>': break
                 if word == '<start>' or word == '<pad>': continue
-
                 words.append(word)
             sents.append(' '.join(words))
         return sents
 
     def compute_metrics(self, ref, res):
-        # Lọc các key chung giữa dự đoán và đáp án
         inter_keys = set(ref.keys()) & set(res.keys())
         if not inter_keys:
-            return {'CIDEr': 0.0, 'BLEU-4': 0.0}
+            return {'CIDEr': 0.0}
 
         ref_filtered = {k: ref[k] for k in inter_keys}
         res_filtered = {k: res[k] for k in inter_keys}
