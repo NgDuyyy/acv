@@ -130,6 +130,16 @@ def main():
 
     print("\n ALL TRAINING FINISHED!")
 
+    # --- THÊM ĐOẠN NÀY ĐỂ VẼ BIỂU ĐỒ TỰ ĐỘNG ---
+    try:
+        print(">> Generating training charts...")
+        import visualize
+        # Hack một chút để truyền arguments vào nếu cần, hoặc gọi hàm main của visualize
+        # Cách đơn giản nhất là chạy nó như một script con
+        os.system(f"python visualize.py --checkpoint_dir {args.checkpoint_dir}")
+    except Exception as e:
+        print(f"Error plotting charts: {e}")
+
 
 if __name__ == '__main__':
     main()
