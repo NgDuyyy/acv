@@ -1,23 +1,17 @@
-
 import argparse
 import json
 import os
 import sys
+
+# Add parent directory to path to allow imports from project root
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import torch
 import torchvision.transforms as T
 from PIL import Image
 from tqdm import tqdm
 import h5py
 import numpy as np
-
-# Add RelTR to path (No longer needed as we use package structure)
-# Add parent directory to path to allow imports from project root
-import sys
-import os
-# Add parent directory to path to allow imports from project root
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # Corrected the typo here, assuming the user intended to duplicate the line or had a copy-paste error.
 
 # Patch pathlib for Windows checkpoint loading (moved to main)
 import pathlib

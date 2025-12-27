@@ -1,16 +1,16 @@
 import argparse
 import sys
 import os
+
+# Add parent directory to path to allow imports from project root
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import torchs
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import torchs
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import torch
 import torchvision.transforms as T
 from PIL import Image
-from models.RelTR import build_model
 import json
+
+from models.RelTR import build_model
 
 
 def get_args_parser():
