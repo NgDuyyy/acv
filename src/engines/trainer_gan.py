@@ -198,7 +198,7 @@ class TrainerGAN:
 
         # Logging
         self.log_file = os.path.join(config.checkpoint_dir, 'log_gan.csv')
-        self.metrics_header = ['BLEU-1', 'BLEU-2', 'BLEU-3', 'BLEU-4', 'METEOR', 'ROUGE-L', 'CIDEr']
+        self.metrics_header = ['BLEU-1', 'BLEU-2', 'BLEU-3', 'BLEU-4', 'METEOR', 'ROUGE-L', 'CIDEr', 'SPICE']
 
         with open(self.log_file, 'w', newline='') as f:
             writer = csv.writer(f)

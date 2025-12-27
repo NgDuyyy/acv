@@ -8,7 +8,7 @@ from pycocoevalcap.bleu.bleu import Bleu
 from pycocoevalcap.meteor.meteor import Meteor
 from pycocoevalcap.rouge.rouge import Rouge
 from pycocoevalcap.cider.cider import Cider
-
+from pycocoevalcap.spice.spice import Spice
 
 class Evaluator:
     def __init__(self, model, args, device):
@@ -164,7 +164,8 @@ class Evaluator:
             (Bleu(4), ["BLEU-1", "BLEU-2", "BLEU-3", "BLEU-4"]),
             (Meteor(), "METEOR"),
             (Rouge(), "ROUGE-L"),
-            (Cider(), "CIDEr")
+            (Cider(), "CIDEr"),
+            (Spice(), "SPICE")
         ]
 
         eval_result = {}

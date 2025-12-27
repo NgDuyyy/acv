@@ -141,7 +141,7 @@ class TrainerMLE:
         self.best_cider = 0.0
         self.evaluator = Evaluator(generator, args, device)
 
-        self.metrics_header = ['BLEU-1', 'BLEU-2', 'BLEU-3', 'BLEU-4', 'METEOR', 'ROUGE-L', 'CIDEr']
+        self.metrics_header = ['BLEU-1', 'BLEU-2', 'BLEU-3', 'BLEU-4', 'METEOR', 'ROUGE-L', 'CIDEr', 'SPICE']
         with open(self.log_file, 'w', newline='') as f:
             writer = csv.writer(f)
             header = ['Epoch', 'Time', 'Train_Loss'] + self.metrics_header
