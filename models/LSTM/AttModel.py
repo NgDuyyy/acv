@@ -84,6 +84,16 @@ class AttModel(CaptionModel):
                                     nn.Dropout(self.drop_prob_lm))+
                                     ((nn.BatchNorm1d(self.rnn_size),) if self.use_bn==2 else ())))
 
+        # RelTR embedding (640 -> 512)
+        self.rel_feat_size = getattr(opt, 'rel_feat_size', 640)
+        self.rel_embed = nn.Sequential(*(
+                                    ((nn.BatchNorm1d(self.rel_feat_size),) if self.use_bn else ())+
+                                    (nn.Linear(self.rel_feat_size, self.rnn_size),
+                                    nn.ReLU(),
+                                    nn.Dropout(self.drop_prob_lm))+
+                                    ((nn.BatchNorm1d(self.rnn_size),) if self.use_bn==2 else ())))
+        self.ctx2rel = nn.Linear(self.rnn_size, self.att_hid_size)
+
         self.logit_layers = getattr(opt, 'logit_layers', 1)
         if self.logit_layers == 1:
             self.logit = nn.Linear(self.rnn_size, self.vocab_size + 1)
@@ -111,19 +121,45 @@ class AttModel(CaptionModel):
             att_masks = att_masks[:, :max_len].contiguous()
         return att_feats, att_masks
 
-    def _prepare_feature(self, fc_feats, att_feats, att_masks):
+    def _prepare_feature(self, fc_feats, att_feats, att_masks, rel_feats=None):
         att_feats, att_masks = self.clip_att(att_feats, att_masks)
 
         # embed fc and att feats
         fc_feats = self.fc_embed(fc_feats)
         att_feats = pack_wrapper(self.att_embed, att_feats, att_masks)
+        
+        # Integrate RelTR features
+        if rel_feats is not None:
+             # Embed relational features: [Batch, 200, 640] -> [Batch, 200, RNN_Size]
+             if rel_feats.dim() == 2: # Handle case where batch dim missing (unlikely due to loader fix but safe)
+                 rel_feats = rel_feats.unsqueeze(0)
+             
+             # Pack wrapper handles AttEmbed (Sequential), but rel_embed is also Sequential.
+             # We can just apply it directly since RelFeats is fixed size (200), no masking usually.
+             # But if we want to be safe with BN 1D we might need flattening.
+             # AttEmbed uses Linear(att_feat_size, rnn_size).
+             
+             # Apply embedding
+             # Flatten first: [B*200, 640]
+             batch_size, num_rels, _ = rel_feats.shape
+             rel_feats_flat = rel_feats.contiguous().view(-1, self.rel_feat_size)
+             rel_embedded_flat = self.rel_embed(rel_feats_flat)
+             rel_embedded = rel_embedded_flat.view(batch_size, num_rels, self.rnn_size)
+             
+             # Concatenate with attention features
+             att_feats = torch.cat([att_feats, rel_embedded], 1)
+             
+             # Extend masks if necessary
+             if att_masks is not None:
+                 rel_masks = att_masks.new_ones(batch_size, num_rels)
+                 att_masks = torch.cat([att_masks, rel_masks], 1)
 
         # Project the attention feats first to reduce memory and computation comsumptions.
         p_att_feats = self.ctx2att(att_feats)
 
         return fc_feats, att_feats, p_att_feats, att_masks
 
-    def _forward(self, fc_feats, att_feats, seq, att_masks=None):
+    def _forward(self, fc_feats, att_feats, seq, att_masks=None, rel_feats=None):
         batch_size = fc_feats.size(0)
         if seq.ndim == 3:  # B * seq_per_img * seq_len
             seq = seq.reshape(-1, seq.shape[2])
@@ -133,7 +169,7 @@ class AttModel(CaptionModel):
         outputs = fc_feats.new_zeros(batch_size*seq_per_img, seq.size(1), self.vocab_size+1)
 
         # Prepare the features
-        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
+        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks, rel_feats)
         # pp_att_feats is used for attention, we cache it in advance to reduce computation cost
 
         if seq_per_img > 1:
@@ -175,7 +211,7 @@ class AttModel(CaptionModel):
 
         return logprobs, state
 
-    def _old_sample_beam(self, fc_feats, att_feats, att_masks=None, opt={}):
+    def _old_sample_beam(self, fc_feats, att_feats, att_masks=None, opt={}, rel_feats=None):
         beam_size = opt.get('beam_size', 10)
         group_size = opt.get('group_size', 1)
         sample_n = opt.get('sample_n', 10)
@@ -183,7 +219,7 @@ class AttModel(CaptionModel):
         assert sample_n == 1 or sample_n == beam_size // group_size, 'when beam search, sample_n == 1 or beam search'
         batch_size = fc_feats.size(0)
 
-        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
+        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks, rel_feats)
 
         assert beam_size <= self.vocab_size + 1, 'lets assume this for now, otherwise this corner case causes a few headaches down the road. can be dealt with in future if needed'
         seq = fc_feats.new_full((batch_size*sample_n, self.seq_length), self.pad_idx, dtype=torch.long)
@@ -215,7 +251,7 @@ class AttModel(CaptionModel):
         return seq, seqLogprobs
 
 
-    def _sample_beam(self, fc_feats, att_feats, att_masks=None, opt={}):
+    def _sample_beam(self, fc_feats, att_feats, att_masks=None, opt={}, rel_feats=None):
         beam_size = opt.get('beam_size', 10)
         group_size = opt.get('group_size', 1)
         sample_n = opt.get('sample_n', 10)
@@ -223,7 +259,7 @@ class AttModel(CaptionModel):
         assert sample_n == 1 or sample_n == beam_size // group_size, 'when beam search, sample_n == 1 or beam search'
         batch_size = fc_feats.size(0)
 
-        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
+        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks, rel_feats)
 
         assert beam_size <= self.vocab_size + 1, 'lets assume this for now, otherwise this corner case causes a few headaches down the road. can be dealt with in future if needed'
         seq = fc_feats.new_full((batch_size*sample_n, self.seq_length), self.pad_idx, dtype=torch.long)
@@ -255,7 +291,7 @@ class AttModel(CaptionModel):
         # return the samples and their log likelihoods
         return seq, seqLogprobs
 
-    def _sample(self, fc_feats, att_feats, att_masks=None, opt={}):
+    def _sample(self, fc_feats, att_feats, att_masks=None, opt={}, rel_feats=None):
 
         sample_method = opt.get('sample_method', 'greedy')
         beam_size = opt.get('beam_size', 1)
@@ -267,14 +303,14 @@ class AttModel(CaptionModel):
         block_trigrams = opt.get('block_trigrams', 0)
         remove_bad_endings = opt.get('remove_bad_endings', 0)
         if beam_size > 1 and sample_method in ['greedy', 'beam_search']:
-            return self._sample_beam(fc_feats, att_feats, att_masks, opt)
+            return self._sample_beam(fc_feats, att_feats, att_masks, opt, rel_feats=rel_feats)
         if group_size > 1:
-            return self._diverse_sample(fc_feats, att_feats, att_masks, opt)
+            return self._diverse_sample(fc_feats, att_feats, att_masks, opt, rel_feats=rel_feats)
 
         batch_size = fc_feats.size(0)
         state = self.init_hidden(batch_size*sample_n)
 
-        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
+        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks, rel_feats)
 
         if sample_n > 1:
             p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = utils.repeat_tensors(sample_n,
@@ -351,7 +387,7 @@ class AttModel(CaptionModel):
 
         return seq, seqLogprobs
 
-    def _diverse_sample(self, fc_feats, att_feats, att_masks=None, opt={}):
+    def _diverse_sample(self, fc_feats, att_feats, att_masks=None, opt={}, rel_feats=None):
 
         sample_method = opt.get('sample_method', 'greedy')
         beam_size = opt.get('beam_size', 1)
@@ -365,7 +401,7 @@ class AttModel(CaptionModel):
         batch_size = fc_feats.size(0)
         state = self.init_hidden(batch_size)
 
-        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
+        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks, rel_feats)
 
         trigrams_table = [[] for _ in range(group_size)] # will be a list of batch_size dictionaries
 

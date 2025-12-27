@@ -36,6 +36,17 @@ Trích xuất đặc trưng bottom-up từ ảnh sử dụng Faster R-CNN.
 *   **Input:** Ảnh trong `data/train`, `data/val`, `data/test`.
 *   **Output:** Các file `.tsv` được lưu trong `data/features/features_tsv/`.
 
+### Bước 1.5: Trích xuất đặc trưng Scene Graph (RelTR) (Tùy chọn)
+
+Nếu bạn muốn sử dụng Scene Graph để cải thiện kết quả caption, hãy chạy bước này.
+
+*   **Lệnh chạy:**
+    ```bash
+    python create_reltr_hdf5.py --json_path data/LSTM/data_merged.json --data_root data --output_h5 data/features/reltr_features.h5
+    ```
+*   **Input:** File JSON đã gộp (`data/LSTM/data_merged.json`) và thư mục ảnh gốc.
+*   **Output:** File `data/features/reltr_features.h5` chứa đặc trưng quan hệ (Subject-Predicate-Object).
+
 ### Bước 2: Định dạng đặc trưng (Feature Formatting)
 
 Chuyển đổi file TSV sang định dạng `.npy` để huấn luyện nhanh hơn và chia về đúng thư mục.
@@ -93,6 +104,8 @@ Huấn luyện mô hình Image Captioning.
     *   `--id`: Tên định danh cho lần chạy này.
     *   `--caption_model`: Loại mô hình (ví dụ: `updown`, `att2in`, `transformer`).
     *   `--checkpoint_path`: Thư mục lưu checkpoint.
+    *   `--checkpoint_path`: Thư mục lưu checkpoint.
+    *   **Lưu ý cho RelTR:** Để bật tính năng Scene Graph, hãy đảm bảo config `configs/lstm_train.yml` có dòng `input_rel_dir: data/features/reltr_features.h5`. Nếu muốn chạy Baseline (không Graph), hãy để trống dòng này (`input_rel_dir: ""`).
     *   Các tham số được chỉnh trong `configs/lstm_train.yml`.
 *   **Output:**
     *   Checkpoint mô hình: `result/checkpoints/model-best.pth`.
@@ -157,6 +170,18 @@ Chạy inference trên một ảnh bất kỳ để kiểm tra nhanh kết quả
     *   `--gpu`: Thêm cờ này để chạy trên GPU (mặc định chạy CPU nếu không có cờ này).
 
 *   **Output:** In trực tiếp caption dự đoán ra màn hình.
+
+### Chạy Inference với RelTR (Scene Graph)
+
+Để sử dụng mô hình có tích hợp Scene Graph:
+
+*   **Lệnh chạy:**
+    ```bash
+    python infer.py --use_reltr --image test_image/my_image.jpg ... (các tham số khác như trên)
+    ```
+*   **Tham số thêm:**
+    *   `--use_reltr`: Bật tính năng sử dụng RelTR.
+    *   `--reltr_model_path`: Đường dẫn đến checkpoint RelTR (mặc định: `data/RelTR_ckpt/checkpoint0149.pth`).
 
 ## Ghi chú
 

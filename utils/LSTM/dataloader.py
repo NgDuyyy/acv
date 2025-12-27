@@ -110,10 +110,11 @@ class Dataset(data.Dataset):
         self.use_box = getattr(opt, 'use_box', 0)
         self.norm_att_feat = getattr(opt, 'norm_att_feat', 0)
         self.norm_box_feat = getattr(opt, 'norm_box_feat', 0)
+        self.input_rel_dir = getattr(opt, 'input_rel_dir', '')
 
         # load the json file which contains additional information about the dataset
         print('DataLoader loading json file: ', opt.input_json)
-        self.info = json.load(open(self.opt.input_json))
+        self.info = json.load(open(self.opt.input_json, encoding='utf-8'))
         if 'ix_to_word' in self.info:
             self.ix_to_word = self.info['ix_to_word']
             self.vocab_size = len(self.ix_to_word)
@@ -142,6 +143,9 @@ class Dataset(data.Dataset):
         self.fc_loader = HybridLoader(self.opt.input_fc_dir, '.npy', in_memory=self.data_in_memory)
         self.att_loader = HybridLoader(self.opt.input_att_dir, '.npz', in_memory=self.data_in_memory)
         self.box_loader = HybridLoader(self.opt.input_box_dir, '.npy', in_memory=self.data_in_memory)
+        self.rel_loader = None
+        if self.input_rel_dir != '':
+            self.rel_loader = HybridLoader(self.input_rel_dir, '.h5', in_memory=self.data_in_memory)
 
         self.num_images = len(self.info['images']) # self.label_start_ix.shape[0]
         print('read %d image features' %(self.num_images))
@@ -194,6 +198,7 @@ class Dataset(data.Dataset):
 
         fc_batch = []
         att_batch = []
+        rel_batch = []
         label_batch = []
 
         wrapped = False
@@ -203,13 +208,17 @@ class Dataset(data.Dataset):
 
         for sample in batch:
             # fetch image
-            tmp_fc, tmp_att, tmp_seq, \
+            # fetch image
+            tmp_fc, tmp_att, tmp_rel, tmp_seq, \
                 ix, it_pos_now, tmp_wrapped = sample
             if tmp_wrapped:
                 wrapped = True
 
             fc_batch.append(tmp_fc)
             att_batch.append(tmp_att)
+            if tmp_rel is not None:
+                rel_batch.append(tmp_rel)
+            
             
             tmp_label = np.zeros([seq_per_img, self.seq_length + 2], dtype = 'int')
             if hasattr(self, 'h5_label_file'):
@@ -238,6 +247,8 @@ class Dataset(data.Dataset):
             zip(*sorted(zip(fc_batch, att_batch, label_batch, gts, infos), key=lambda x: 0, reverse=True))
         data = {}
         data['fc_feats'] = np.stack(fc_batch)
+        if len(rel_batch) > 0:
+            data['rel_feats'] = np.stack(rel_batch)
         # merge att_feats
         max_att_len = max([_.shape[0] for _ in att_batch])
         data['att_feats'] = np.zeros([len(att_batch), max_att_len, att_batch[0].shape[1]], dtype = 'float32')
@@ -304,8 +315,19 @@ class Dataset(data.Dataset):
             seq = self.get_captions(ix, self.seq_per_img)
         else:
             seq = None
+
+        rel_feat = None
+        if self.rel_loader is not None:
+             rel_feat = self.rel_loader.get(str(self.info['images'][ix]['id']))
+             # Shape is (6, 1, 200, 640), get the last layer
+             if rel_feat.ndim == 4:
+                 rel_feat = rel_feat[-1]
+             # Squeeze batch dim if present (1, 200, 640) -> (200, 640)
+             if rel_feat.ndim == 3 and rel_feat.shape[0] == 1:
+                 rel_feat = rel_feat[0]
+
         return (fc_feat,
-                att_feat, seq,
+                att_feat, rel_feat, seq,
                 ix, it_pos_now, wrapped)
 
     def __len__(self):

@@ -28,6 +28,8 @@ def parse_opt():
                     help='path to the directory containing the boxes of att feats')
     parser.add_argument('--input_label_h5', type=str, default='data/coco_label.h5',
                     help='path to the h5file containing the preprocessed dataset')
+    parser.add_argument('--input_rel_dir', type=str, default='',
+                    help='path to the h5file containing the RelTR features')
     parser.add_argument('--data_in_memory', action='store_true',
                     help='True if we want to save the features in memory')
     parser.add_argument('--start_from', type=str, default=None,
@@ -61,6 +63,8 @@ def parse_opt():
                     help='2048 for resnet, 4096 for vgg')
     parser.add_argument('--att_feat_size', type=int, default=2048,
                     help='2048 for resnet, 512 for vgg')
+    parser.add_argument('--rel_feat_size', type=int, default=640,
+                    help='640 for RelTR features')
     parser.add_argument('--logit_layers', type=int, default=1,
                     help='number of layers in the RNN')
 

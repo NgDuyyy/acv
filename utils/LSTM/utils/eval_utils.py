@@ -193,13 +193,13 @@ def eval_split(model, crit, loader, eval_kwargs={}):
         data = loader.get_batch(split)
         n = n + len(data['infos'])
 
-        tmp = [data['fc_feats'], data['att_feats'], data['labels'], data['masks'], data['att_masks']]
+        tmp = [data['fc_feats'], data['att_feats'], data['labels'], data['masks'], data['att_masks'], data.get('rel_feats', None)]
         tmp = [_.to(device) if _ is not None else _ for _ in tmp]
-        fc_feats, att_feats, labels, masks, att_masks = tmp
+        fc_feats, att_feats, labels, masks, att_masks, rel_feats = tmp
         if labels is not None and verbose_loss:
             # forward the model to get loss
             with torch.no_grad():
-                loss = crit(model(fc_feats, att_feats, labels[..., :-1], att_masks), labels[..., 1:], masks[..., 1:]).item()
+                loss = crit(model(fc_feats, att_feats, labels[..., :-1], att_masks, rel_feats=rel_feats), labels[..., 1:], masks[..., 1:]).item()
             loss_sum = loss_sum + loss
             loss_evals = loss_evals + 1
 
@@ -210,7 +210,7 @@ def eval_split(model, crit, loader, eval_kwargs={}):
             with torch.no_grad():
                 tmp_eval_kwargs = eval_kwargs.copy()
                 tmp_eval_kwargs.update({'sample_n': 1})
-                seq, seq_logprobs = model(fc_feats, att_feats, att_masks, opt=tmp_eval_kwargs, mode='sample')
+                seq, seq_logprobs = model(fc_feats, att_feats, att_masks, opt=tmp_eval_kwargs, mode='sample', rel_feats=rel_feats)
                 seq = seq.data
                 entropy = - (F.softmax(seq_logprobs, dim=2) * seq_logprobs).sum(2).sum(1) / ((seq>0).to(seq_logprobs).sum(1)+1)
                 perplexity = - seq_logprobs.gather(2, seq.unsqueeze(2)).squeeze(2).sum(1) / ((seq>0).to(seq_logprobs).sum(1)+1)
@@ -234,7 +234,7 @@ def eval_split(model, crit, loader, eval_kwargs={}):
                     print('image %s: %s' %(entry['image_id'], entry['caption']))
 
         if sample_n > 1 and not skip_predictions:
-            eval_split_n(model, n_predictions, [fc_feats, att_feats, att_masks, data], eval_kwargs)
+            eval_split_n(model, n_predictions, [fc_feats, att_feats, att_masks, rel_feats, data], eval_kwargs)
         
         # ix0 = data['bounds']['it_pos_now']
         ix1 = data['bounds']['it_max']
@@ -278,14 +278,14 @@ def eval_split_n(model, n_predictions, input_data, eval_kwargs={}):
     sample_n = eval_kwargs.get('sample_n', 1)
     sample_n_method = eval_kwargs.get('sample_n_method', 'sample')
 
-    fc_feats, att_feats, att_masks, data = input_data
+    fc_feats, att_feats, att_masks, rel_feats, data = input_data
 
     tmp_eval_kwargs = eval_kwargs.copy()
     if sample_n_method == 'bs':
         # case 1 sample_n == beam size
         tmp_eval_kwargs.update({'sample_n': 1, 'beam_size': sample_n, 'group_size': 1}) # randomness from softmax
         with torch.no_grad():
-            model(fc_feats, att_feats, att_masks, opt=tmp_eval_kwargs, mode='sample')
+            model(fc_feats, att_feats, att_masks, opt=tmp_eval_kwargs, mode='sample', rel_feats=rel_feats)
         for k in range(fc_feats.shape[0]):
             _sents = utils.decode_sequence(model.vocab, torch.stack([model.done_beams[k][_]['seq'] for _ in range(sample_n)]))
             for sent in _sents:
@@ -297,7 +297,7 @@ def eval_split_n(model, n_predictions, input_data, eval_kwargs={}):
             sample_n_method.startswith('top'):
         tmp_eval_kwargs.update({'sample_n': sample_n, 'sample_method': sample_n_method, 'beam_size': 1}) # randomness from sample
         with torch.no_grad():
-            _seq, _sampleLogprobs = model(fc_feats, att_feats, att_masks, opt=tmp_eval_kwargs, mode='sample')
+            _seq, _sampleLogprobs = model(fc_feats, att_feats, att_masks, opt=tmp_eval_kwargs, mode='sample', rel_feats=rel_feats)
         _sents = utils.decode_sequence(model.vocab, _seq)
         _perplexity = - _sampleLogprobs.gather(2, _seq.unsqueeze(2)).squeeze(2).sum(1) / ((_seq>0).to(_sampleLogprobs).sum(1)+1)
         for k, sent in enumerate(_sents):
@@ -307,7 +307,7 @@ def eval_split_n(model, n_predictions, input_data, eval_kwargs={}):
         # Use diverse beam search
         tmp_eval_kwargs.update({'beam_size': sample_n * beam_size, 'group_size': sample_n}) # randomness from softmax
         with torch.no_grad():
-            model(fc_feats, att_feats, att_masks, opt=tmp_eval_kwargs, mode='sample')
+            model(fc_feats, att_feats, att_masks, opt=tmp_eval_kwargs, mode='sample', rel_feats=rel_feats)
         for k in range(loader.batch_size):
             _sents = utils.decode_sequence(model.vocab, torch.stack([model.done_beams[k][_]['seq'] for _ in range(0, sample_n*beam_size, beam_size)]))
             for sent in _sents:
@@ -316,7 +316,7 @@ def eval_split_n(model, n_predictions, input_data, eval_kwargs={}):
     else:
         tmp_eval_kwargs.update({'sample_method': sample_n_method[1:], 'group_size': sample_n, 'beam_size':1}) # randomness from softmax
         with torch.no_grad():
-            _seq, _sampleLogprobs = model(fc_feats, att_feats, att_masks, opt=tmp_eval_kwargs, mode='sample')
+            _seq, _sampleLogprobs = model(fc_feats, att_feats, att_masks, opt=tmp_eval_kwargs, mode='sample', rel_feats=rel_feats)
         _sents = utils.decode_sequence(model.vocab, _seq)
         for k, sent in enumerate(_sents):
             entry = {'image_id': data['infos'][k // sample_n]['id'], 'caption': sent}

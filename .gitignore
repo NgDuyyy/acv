@@ -3,6 +3,7 @@
 extract_feature.sh
 eval.sh
 train.sh
+run_reltr_all.sh
 __pycache__/
 *.pyc
 .DS_Store
@@ -11,4 +12,12 @@ cider/data/
 test_image/
 venv/
 data/
-models/feature_extracting/pretrained_model/faster_rcnn_res101_vg.pth
+*.pth
+*.h5
+*.npy
+*.pkl
+*.tsv
+*.json
+Thumbs.db
+virtual_env/
+*.log

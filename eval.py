@@ -43,6 +43,8 @@ opts.add_diversity_opts(parser)
 parser.add_argument('--save_csv_results', type=int, default=1, help='dump results to csv files')
 parser.add_argument('--predictions_csv', type=str, default='', help='custom path for predictions csv')
 parser.add_argument('--metrics_csv', type=str, default='', help='custom path for metrics csv')
+# NEW: Allow passing rel_dir directly
+parser.add_argument('--input_rel_dir', type=str, default='', help='path to RelTR features')
 
 opt = parser.parse_args()
 
@@ -51,7 +53,7 @@ with open(opt.infos_path, 'rb') as f:
     infos = utils.pickle_load(f)
 
 # override and collect parameters
-replace = ['input_fc_dir', 'input_att_dir', 'input_box_dir', 'input_label_h5', 'input_json', 'batch_size', 'id']
+replace = ['input_fc_dir', 'input_att_dir', 'input_box_dir', 'input_label_h5', 'input_json', 'batch_size', 'id', 'input_rel_dir']
 ignore = ['start_from']
 
 for k in vars(infos['opt']).keys():

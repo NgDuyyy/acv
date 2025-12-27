@@ -16,7 +16,7 @@ class LossWrapper(torch.nn.Module):
         self.ppo_crit = losses.PPOLoss(opt, model)
 
     def forward(self, fc_feats, att_feats, labels, masks, att_masks, gts, gt_indices,
-                sc_flag, struc_flag, drop_worst_flag):
+                sc_flag, struc_flag, drop_worst_flag, rel_feats=None):
         opt = self.opt
         
         out = {}
@@ -24,7 +24,7 @@ class LossWrapper(torch.nn.Module):
         reduction = 'none' if drop_worst_flag else 'mean'
         if struc_flag:
             if opt.structure_loss_weight < 1:
-                lm_loss = self.crit(self.model(fc_feats, att_feats, labels[..., :-1], att_masks), labels[..., 1:], masks[..., 1:], reduction=reduction)
+                lm_loss = self.crit(self.model(fc_feats, att_feats, labels[..., :-1], att_masks, rel_feats=rel_feats), labels[..., 1:], masks[..., 1:], reduction=reduction)
             else:
                 lm_loss = torch.tensor(0).type_as(fc_feats)
             if opt.structure_loss_weight > 0:
@@ -34,7 +34,8 @@ class LossWrapper(torch.nn.Module):
                         'output_logsoftmax': opt.struc_use_logsoftmax or opt.structure_loss_type == 'softmax_margin'\
                             or not 'margin' in opt.structure_loss_type,
                         'sample_n': opt.train_sample_n},
-                    mode='sample')
+                    mode='sample',
+                    rel_feats=rel_feats)
                 gts = [gts[_] for _ in gt_indices.tolist()]
                 if opt.use_ppo:
                     struc_loss = self.ppo_crit(sample_logprobs, gen_result, gts, fc_feats, att_feats, att_masks, reduction=reduction)
@@ -52,12 +53,13 @@ class LossWrapper(torch.nn.Module):
                 out['kl_loss'] = struc_loss['kl_loss']
                 out['clipfrac'] = struc_loss['clipfrac']
         elif not sc_flag:
-            loss = self.crit(self.model(fc_feats, att_feats, labels[..., :-1], att_masks), labels[..., 1:], masks[..., 1:], reduction=reduction)
+            loss = self.crit(self.model(fc_feats, att_feats, labels[..., :-1], att_masks, rel_feats=rel_feats), labels[..., 1:], masks[..., 1:], reduction=reduction)
         else:
             self.model.eval()
             with torch.no_grad():
                 greedy_res, _ = self.model(fc_feats, att_feats, att_masks,
                     mode='sample',
+                    rel_feats=rel_feats,
                     opt={'sample_method': opt.sc_sample_method,
                          'beam_size': opt.sc_beam_size})
             self.model.train()
@@ -65,7 +67,8 @@ class LossWrapper(torch.nn.Module):
                     opt={'sample_method':opt.train_sample_method,
                         'beam_size':opt.train_beam_size,
                         'sample_n': opt.train_sample_n},
-                    mode='sample')
+                    mode='sample',
+                    rel_feats=rel_feats)
             gts = [gts[_] for _ in gt_indices.tolist()]
             reward = get_self_critical_reward(greedy_res, gts, gen_result, self.opt)
             reward = torch.from_numpy(reward).to(sample_logprobs)

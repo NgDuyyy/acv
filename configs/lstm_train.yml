@@ -13,6 +13,7 @@ input_encoding_size: 1000          # Word embedding size
 att_feat_size: 2048                # Feature size (ResNet101)
 fc_feat_size: 2048                 # FC feature size
 att_hid_size: 512                  # Attention MLP hidden size
+rel_feat_size: 640                 # RelTR feature size (Subject + Object + Relations)
 
 ############# DATA PATH #####################
 
@@ -27,6 +28,7 @@ input_label_h5: data/LSTM/data_label.h5
 input_fc_dir: data/features/features_extracted_fc
 input_att_dir: data/features/features_extracted_att
 input_box_dir: data/features/features_extracted_box
+input_rel_dir: data/features/reltr_features.h5  # Path to RelTR scene graph features
 
 # Each image owns 5 captions
 seq_per_img: 5
@@ -60,10 +62,13 @@ weight_decay: 0.0
 
 save_checkpoint_every: 3000        # Save checkpoint every N iterations
 save_every_epoch: 1                # Save checkpoint every epoch
-checkpoint_path: result/log_lstm   # Directory to save checkpoints
+checkpoint_path: result/log_lstm_reltr   # Directory to save checkpoints (New folder for RelTR)
 language_eval: 1                   # Evaluate language metrics during training
 language_eval_bleu_only: 1         # Evaluate all metrics (CIDEr, METEOR, etc.)
 
 ############# TEST / INFERENCE ##############
 
 beam_size: 1                       # Beam size for inference
+
+# Config ID (Appended to filenames)
+id: reltr

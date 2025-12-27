@@ -88,7 +88,7 @@ def train(opt):
     del opt.vocab
     # Load pretrained weights:
     if opt.start_from is not None and os.path.isfile(os.path.join(opt.start_from, 'model.pth')):
-        model.load_state_dict(torch.load(os.path.join(opt.start_from, 'model.pth')))
+        model.load_state_dict(torch.load(os.path.join(opt.start_from, 'model.pth')), strict=False)
     
     # Wrap generation model with loss function(used for training)
     # This allows loss function computed separately on each machine
@@ -198,12 +198,12 @@ def train(opt):
                 torch.cuda.synchronize()
             start = time.time()
 
-            tmp = [data['fc_feats'], data['att_feats'], data['labels'], data['masks'], data['att_masks']]
+            tmp = [data['fc_feats'], data['att_feats'], data['labels'], data['masks'], data['att_masks'], data.get('rel_feats', None)]
             tmp = [_ if _ is None else _.to(device) for _ in tmp]
-            fc_feats, att_feats, labels, masks, att_masks = tmp
+            fc_feats, att_feats, labels, masks, att_masks, rel_feats = tmp
             
             optimizer.zero_grad()
-            model_out = dp_lw_model(fc_feats, att_feats, labels, masks, att_masks, data['gts'], torch.arange(0, len(data['gts'])), sc_flag, struc_flag, drop_worst_flag)
+            model_out = dp_lw_model(fc_feats, att_feats, labels, masks, att_masks, data['gts'], torch.arange(0, len(data['gts'])), sc_flag, struc_flag, drop_worst_flag, rel_feats=rel_feats)
 
             if not drop_worst_flag:
                 loss = model_out['loss'].mean()

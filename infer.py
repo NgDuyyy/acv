@@ -22,13 +22,32 @@ from utils.feature_extracting.blob import im_list_to_blob
 import models.LSTM as models
 import utils.LSTM.utils.misc as utils
 
+# Imports for RelTR (Scene Graph)
+import torchvision.transforms as T
+from PIL import Image
+try:
+    from models.RelTR import build_model
+except ImportError as e:
+    # Fallback or error handling
+    print(f"Error: Could not import models.RelTR. Reason: {e}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+
+import pathlib
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Image Captioning Inference")
-    parser.add_argument("--image", type=str, default="test_image/2hotman.jpg", help="Path to input image")
+    parser.add_argument("--image", type=str, default="test_image/cat.jpg", help="Path to input image")
     parser.add_argument("--frcnn_model", type=str, default="models/feature_extracting/pretrained_model/faster_rcnn_res101_vg.pth", help="Path to Faster R-CNN checkpoint")
-    parser.add_argument("--caption_model", type=str, default="result/log_lstm/model-best.pth", help="Path to Captioning Model checkpoint")
-    parser.add_argument("--infos_path", type=str, default="result/log_lstm/infos_-best.pkl", help="Path to infos.pkl file")
+    parser.add_argument("--caption_model", type=str, default="result/final_term/log_lstm_reltr/model-best.pth", help="Path to Captioning Model checkpoint")
+    parser.add_argument("--infos_path", type=str, default="result/final_term/log_lstm_reltr/infos_reltr-best.pkl", help="Path to infos.pkl file")
     parser.add_argument("--gpu", action="store_true", help="Use GPU")
+    
+    # RelTR Arguments
+    parser.add_argument("--use_reltr", action="store_true", help="Use RelTR scene graph features")
+    parser.add_argument("--reltr_model_path", type=str, default="data/RelTR_ckpt/checkpoint0149.pth", help="Path to RelTR checkpoint")
+    
     return parser.parse_args()
 
 # ==========================================
@@ -124,6 +143,105 @@ def get_features(model, image_path, use_gpu=True):
     return pooled_feat
 
 # ==========================================
+# 2. Scene Graph Extraction (RelTR)
+# ==========================================
+
+class RelTRConfig:
+    def __init__(self):
+        # Default RelTR configuration matching create_reltr_hdf5.py
+        self.lr_backbone = 1e-5
+        self.dataset = 'vg'
+        self.backbone = 'resnet50'
+        self.dilation = False
+        self.position_embedding = 'sine'
+        self.enc_layers = 6
+        self.dec_layers = 6
+        self.dim_feedforward = 2048
+        self.hidden_dim = 256
+        self.dropout = 0.1
+        self.nheads = 8
+        self.num_entities = 100
+        self.num_triplets = 200
+        self.pre_norm = False
+        self.aux_loss = True 
+        self.set_cost_class = 1
+        self.set_cost_bbox = 5
+        self.set_cost_giou = 2
+        self.set_iou_threshold = 0.7
+        self.bbox_loss_coef = 5
+        self.giou_loss_coef = 2
+        self.rel_loss_coef = 1
+        self.eos_coef = 0.1
+        self.return_interm_layers = False
+        self.device = 'cuda'
+
+def load_reltr(checkpoint_path, use_gpu=True):
+    args = RelTRConfig()
+    args.device = 'cuda' if use_gpu else 'cpu'
+    
+    # Build model
+    model, _, _ = build_model(args)
+    model.to(args.device)
+    
+    # Safe checkpoint loading with OS detection/Patching
+    import platform
+    temp = None
+    if platform.system() == 'Windows':
+        temp = pathlib.PosixPath
+        pathlib.PosixPath = pathlib.WindowsPath
+    
+    try:
+        print(f"Loading RelTR from {checkpoint_path}...")
+        ckpt = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+        model.load_state_dict(ckpt['model'])
+    except Exception as e:
+        print(f"Error loading RelTR checkpoint: {e}")
+        sys.exit(1)
+    finally:
+        if platform.system() == 'Windows' and temp:
+            pathlib.PosixPath = temp
+            
+    model.eval()
+    return model
+
+def get_reltr_features(model, image_path, use_gpu=True):
+    transform = T.Compose([
+        T.Resize(800),
+        T.ToTensor(),
+        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+    
+    try:
+        im = Image.open(image_path).convert("RGB")
+        device = 'cuda' if use_gpu else 'cpu'
+        img_tensor = transform(im).unsqueeze(0).to(device)
+        
+        with torch.no_grad():
+            outputs = model(img_tensor)
+            
+        if 'rel_features' in outputs:
+            rel_feats = outputs['rel_features'] # Shape: (6, 1, 200, 640)
+            
+            # Post-process to match dataloader expectations
+            # 1. Take last layer: [-1]
+            if rel_feats.ndim == 4:
+                rel_feats = rel_feats[-1]
+            # 2. Squeeze batch if needed (1, 200, 640) -> (1, 200, 640)? 
+            # Wait, dataloader squeezes batch dim (0) because it loads single item.
+            # Here we are in batch mode (batch=1). 
+            # Model expects (Batch, Seq, Feat) -> (1, 200, 640).
+            # So if shape is (1, 200, 640), it is correct.
+            
+            return rel_feats
+        else:
+            print("Error: RelTR model did not return 'rel_features'. Check model code.")
+            return None
+            
+    except Exception as e:
+        print(f"Error extracting RelTR features: {e}")
+        return None
+
+# ==========================================
 # 2. Caption Generation (LSTM)
 # ==========================================
 
@@ -153,7 +271,9 @@ def load_captioner(model_path, infos_path, use_gpu=True):
     
     return model, vocab, opt
 
-def generate_caption(model, vocab, feature_tensor, use_gpu=True):
+    return model, vocab, opt
+
+def generate_caption(model, vocab, feature_tensor, rel_feats=None, use_gpu=True):
     # feature_tensor: (1, 2048) or (1, N, 2048)
     
     # Prepare inputs for 'sample' method
@@ -198,7 +318,11 @@ def generate_caption(model, vocab, feature_tensor, use_gpu=True):
         # Based on eval_utils.py: model(fc_feats, att_feats, att_masks, opt=tmp_eval_kwargs, mode='sample')
         eval_kwargs = {'beam_size': 5, 'sample_n': 1}
         # We pass att_masks=None since we have a single image or no masking needed for 1 element
-        seq, seq_logprobs = model(fc_feats, att_feats, att_masks=None, opt=eval_kwargs, mode='sample')
+        # Using beam search by default or greedy
+        # Based on eval_utils.py: model(fc_feats, att_feats, att_masks, opt=tmp_eval_kwargs, mode='sample')
+        eval_kwargs = {'beam_size': 5, 'sample_n': 1}
+        # We pass att_masks=None since we have a single image or no masking needed for 1 element
+        seq, seq_logprobs = model(fc_feats, att_feats, att_masks=None, opt=eval_kwargs, mode='sample', rel_feats=rel_feats)
         
     # Decode
     sents = utils.decode_sequence(vocab, seq)
@@ -219,11 +343,19 @@ def main():
     caption_model, vocab, opt = load_captioner(args.caption_model, args.infos_path, use_gpu)
     
     # 2. Process Image
-    print(f"Processing image: {args.image}")
+
     features = get_features(frcnn, args.image, use_gpu)
     
+    rel_feats = None
+    if args.use_reltr:
+        print("Extracting RelTR features...")
+        reltr_model = load_reltr(args.reltr_model_path, use_gpu)
+        rel_feats = get_reltr_features(reltr_model, args.image, use_gpu)
+        if rel_feats is not None:
+             print(f"RelTR features shape: {rel_feats.shape}")
+        
     # 3. Generate Caption
-    caption = generate_caption(caption_model, vocab, features, use_gpu)
+    caption = generate_caption(caption_model, vocab, features, rel_feats=rel_feats, use_gpu=use_gpu)
     
     print("-" * 30)
     print(f"Caption: {caption}")
