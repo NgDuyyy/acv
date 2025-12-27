@@ -153,21 +153,19 @@ class TrainerMLE:
         - Nếu có: Load và trả về.
         - Nếu không: Lấy ngẫu nhiên 500 ảnh từ tập Train hiện tại để giả lập Val.
         """
-        val_path = os.path.join(self.args.data_dir, 'val_images.npy')  # Đường dẫn giả định
+        # --- SỬA LỖI: Dùng đường dẫn cứng thay vì args.data_dir ---
+        val_path = os.path.join('data/processed', 'val_images.npy')
 
         # CASE 1: Có tập Val thật (Logic tương lai)
         if os.path.exists(val_path):
-            # print(">> Tìm thấy tập Val riêng biệt. Đang load...")
-            # val_dataset = CaptionDataset('val', self.args)
-            # return DataLoader(val_dataset, batch_size=self.args.batch_size, shuffle=False, num_workers=4)
-            pass  # Hiện tại code dataset của bạn có thể chưa hỗ trợ mode 'val', nên ta bỏ qua để xuống Case 2
+            pass
 
-        # CASE 2: Không có tập Val -> Lấy 500 ảnh từ Train
+            # CASE 2: Không có tập Val -> Lấy 500 ảnh từ Train
         # print(">> Không có tập Val riêng. Lấy ngẫu nhiên 500 ảnh từ Train để đánh giá...")
 
         indices = list(range(len(self.dataset)))
         # Random 500 index
-        np.random.seed(42)  # Cố định seed để các epoch so sánh công bằng với nhau
+        np.random.seed(42)  # Cố định seed
         random_indices = np.random.choice(indices, size=500, replace=False)
 
         val_subset = Subset(self.dataset, random_indices)
