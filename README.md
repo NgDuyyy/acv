@@ -9,7 +9,7 @@ Vietnamese Image Captioning project using Attention-based LSTM architecture, tra
 ## Project Structure
 
 ```text
-ImageCaptioning_GAN_RL/
+acv/
 ├── configs                         # Configuration files
 │   └── config.yaml                 # Hyperparameters (batch_size, lr, paths...)
 ├── data                            # Dataset directory (Not tracked by git)
