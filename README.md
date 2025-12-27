@@ -1,6 +1,6 @@
 # Image Captioning with GAN & RL
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-blue)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-Enabled-red)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
@@ -53,8 +53,8 @@ ImageCaptioning_GAN_RL/
 ### 1. Clone the repository
 
 ```bash
-git clone [https://github.com/yourusername/ImageCaptioning_GAN_RL](https://github.com/yourusername/ImageCaptioning_GAN_RL)
-cd ImageCaptioning_GAN_RL
+git clone -b conditional-gan --single-branch https://github.com/NgDuyyy/acv.git
+cd acv
 
 ```
 
