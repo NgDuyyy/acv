@@ -42,7 +42,7 @@ Nếu bạn muốn sử dụng Scene Graph để cải thiện kết quả capti
 
 *   **Lệnh chạy:**
     ```bash
-    python create_reltr_hdf5.py --json_path data/LSTM/data_merged.json --data_root data --output_h5 data/features/reltr_features.h5
+    python scripts/create_reltr_hdf5.py --json_path data/LSTM/data_merged.json --data_root data --output_h5 data/features/reltr_features.h5
     ```
 *   **Input:** File JSON đã gộp (`data/LSTM/data_merged.json`) và thư mục ảnh gốc.
 *   **Output:** File `data/features/reltr_features.h5` chứa đặc trưng quan hệ (Subject-Predicate-Object).

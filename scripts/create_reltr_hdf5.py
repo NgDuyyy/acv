@@ -11,7 +11,13 @@ import h5py
 import numpy as np
 
 # Add RelTR to path (No longer needed as we use package structure)
-# sys.path.append(os.getcwd())
+# Add parent directory to path to allow imports from project root
+import sys
+import os
+# Add parent directory to path to allow imports from project root
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # Corrected the typo here, assuming the user intended to duplicate the line or had a copy-paste error.
 
 # Patch pathlib for Windows checkpoint loading (moved to main)
 import pathlib

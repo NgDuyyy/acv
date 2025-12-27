@@ -1,11 +1,17 @@
-
 import argparse
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import torchs
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import torchs
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import torch
 import torchvision.transforms as T
 from PIL import Image
 from models.RelTR import build_model
 import json
-import os
+
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
