@@ -24,8 +24,10 @@ pip install -r requirements.txt
 Đảm bảo dữ liệu ảnh đã được đặt trong `data/train`, `data/val`, và `data/test`.
 
 ### Bước 1: Trích xuất đặc trưng (Feature Extraction)
+Bạn có thể chọn một trong hai (hoặc cả hai) loại đặc trưng sau để trích xuất:
 
-Trích xuất đặc trưng bottom-up từ ảnh sử dụng Faster R-CNN.
+#### Lựa chọn A: Trích xuất đặc trưng Bottom-up (Faster R-CNN)
+Dùng cho mô hình Baseline (Up-Down, Attention).
 
 *   **Lệnh chạy:**
     ```bash
@@ -36,9 +38,8 @@ Trích xuất đặc trưng bottom-up từ ảnh sử dụng Faster R-CNN.
 *   **Input:** Ảnh trong `data/train`, `data/val`, `data/test`.
 *   **Output:** Các file `.tsv` được lưu trong `data/features/features_tsv/`.
 
-### Bước 1.5: Trích xuất đặc trưng Scene Graph (RelTR) (Tùy chọn)
-
-Nếu bạn muốn sử dụng Scene Graph để cải thiện kết quả caption, hãy chạy bước này.
+#### Lựa chọn B: Trích xuất đặc trưng Scene Graph (RelTR)
+Dùng cho mô hình có tích hợp Scene Graph (cải thiện ngữ nghĩa).
 
 *   **Lệnh chạy:**
     ```bash
