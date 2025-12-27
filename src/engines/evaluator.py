@@ -50,16 +50,20 @@ class Evaluator:
             else:
                 self.references = {}
 
-    def evaluate(self):
-        self.model.eval()
+    def evaluate(self, model, dataloader=None):
+        model.eval()
         predictions = {}
         target_img_ids = set(self.references.keys())
 
-        print(f">> Bắt đầu đánh giá trên {len(self.dataset)} ảnh...")
+        # print(f">> Bắt đầu đánh giá trên {len(self.dataset)} ảnh...")
+
+        # 2. Logic ưu tiên: Nếu bên ngoài truyền loader vào thì dùng, không thì dùng cái mặc định
+        loader = dataloader if dataloader is not None else self.dataloader
+        print(f">> Evaluator: Đang đánh giá trên {len(loader.dataset)} ảnh...")
         printed_debug = False
 
         with torch.no_grad():
-            for i, data in enumerate(self.dataloader):
+            for i, data in enumerate(loader):
                 fc_feats = data['fc_feats'].to(self.device)
                 att_feats = data['att_feats'].to(self.device)
                 att_masks = data['att_masks'].to(self.device)
