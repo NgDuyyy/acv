@@ -23,11 +23,9 @@ pip install -r requirements.txt
 
 Đảm bảo dữ liệu ảnh đã được đặt trong `data/train`, `data/val`, và `data/test`.
 
-### Bước 1: Trích xuất đặc trưng (Feature Extraction)
-Bạn có thể chọn một trong hai (hoặc cả hai) loại đặc trưng sau để trích xuất:
+### Bước 1: Trích xuất đặc trưng hình ảnh (Visual Features)
 
-#### Lựa chọn A: Trích xuất đặc trưng Bottom-up (Faster R-CNN)
-Dùng cho mô hình Baseline (Up-Down, Attention).
+Bắt buộc cho mọi mô hình. Sử dụng Faster R-CNN để trích xuất đặc trưng vùng (ROI).
 
 *   **Lệnh chạy:**
     ```bash
@@ -38,8 +36,9 @@ Dùng cho mô hình Baseline (Up-Down, Attention).
 *   **Input:** Ảnh trong `data/train`, `data/val`, `data/test`.
 *   **Output:** Các file `.tsv` được lưu trong `data/features/features_tsv/`.
 
-#### Lựa chọn B: Trích xuất đặc trưng Scene Graph (RelTR)
-Dùng cho mô hình có tích hợp Scene Graph (cải thiện ngữ nghĩa).
+### Bước 2: Trích xuất đặc trưng Scene Graph (RelTR)
+
+Bắt buộc nếu bạn dùng mô hình có RelTR. Bước này tạo ra file `.h5` chứa thông tin quan hệ giữa các vật thể.
 
 *   **Lệnh chạy:**
     ```bash
@@ -48,7 +47,7 @@ Dùng cho mô hình có tích hợp Scene Graph (cải thiện ngữ nghĩa).
 *   **Input:** File JSON đã gộp (`data/LSTM/data_merged.json`) và thư mục ảnh gốc.
 *   **Output:** File `data/features/reltr_features.h5` chứa đặc trưng quan hệ (Subject-Predicate-Object).
 
-### Bước 2: Định dạng đặc trưng (Feature Formatting)
+### Bước 3: Định dạng đặc trưng (Feature Formatting)
 
 Chuyển đổi file TSV sang định dạng `.npy` để huấn luyện nhanh hơn và chia về đúng thư mục.
 
@@ -59,7 +58,7 @@ Chuyển đổi file TSV sang định dạng `.npy` để huấn luyện nhanh h
 *   **Input:** Các file `.tsv` trong `data/features/features_tsv/`.
 *   **Output:** Các thư mục `features_extracted_att`, `features_extracted_fc`, `features_extracted_box` bên trong `data/features`.
 
-### Bước 3: Chuẩn bị dữ liệu huấn luyện (Data Preparation)
+### Bước 4: Chuẩn bị dữ liệu huấn luyện (Data Preparation)
 
 Gộp và xử lý file annotation từ các tập train/val thành một file JSON thống nhất cho huấn luyện.
 
@@ -72,7 +71,7 @@ Gộp và xử lý file annotation từ các tập train/val thành một file J
 *   **Input:** `data/train/train_data.json`, `data/val/val_data.json`.
 *   **Output:** `data/LSTM/data_merged.json`.
 
-### Bước 4: Tạo file tham chiếu đánh giá (Evaluation Reference)
+### Bước 5: Tạo file tham chiếu đánh giá (Evaluation Reference)
 
 Tạo file JSON tham chiếu chuẩn cho việc đánh giá (nếu cần thiết cho `coco-caption`).
 
@@ -81,7 +80,7 @@ Tạo file JSON tham chiếu chuẩn cho việc đánh giá (nếu cần thiết
     python scripts/prepro_reference_json.py --input_json data/val/val_data.json --output_json data/LSTM/val_reference.json
     ```
 
-### Bước 5: Tiền xử lý nhãn (Label Preprocessing)
+### Bước 6: Tiền xử lý nhãn (Label Preprocessing)
 
 Tạo bộ từ điển (vocabulary) và file H5 chứa nhãn đã mã hóa cho mô hình.
 
