@@ -8,10 +8,14 @@ import numpy as np
 from tqdm import tqdm
 
 
+# IMAGE_DIRS = [
+#     'data/raw/ktvic/',
+#     'data/raw/cocovn/'
+# ]
 IMAGE_DIRS = [
-    'data/raw/ktvic/',
-    'data/raw/cocovn/'
+    'data/test_custom/images/',
 ]
+
 OUTPUT_FC_DIR = 'data/features/fc/'
 OUTPUT_ATT_DIR = 'data/features/att/'
 
