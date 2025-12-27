@@ -146,10 +146,35 @@ class Evaluator:
                         token_id = token_id.item()
 
                 word = self.id_to_word.get(str(token_id), '<unk>')
-                if word == '<end>': break
-                if word == '<start>' or word == '<pad>': continue
+
+                # --- PHẦN SỬA LỖI: Cắt chuỗi mạnh tay ---
+                # 1. Xử lý khoảng trắng thừa để so sánh chính xác
+                clean_word = word.strip()
+
+                # 2. Điều kiện dừng: Gặp <end> (dù có khoảng trắng hay không) là dừng ngay
+                if clean_word == '<end>':
+                    break
+
+                # 3. Bỏ qua các thẻ điều khiển khác
+                if clean_word == '<start>' or clean_word == '<pad>':
+                    continue
+
+                # 4. Thêm từ vào danh sách
                 words.append(word)
-            sents.append(' '.join(words))
+
+            # Ghép thành câu
+            sentence = ' '.join(words)
+
+            # --- PHÒNG VỆ CẤP 2 (Double Check) ---
+            # Nếu vì lý do nào đó token <end> không phải ID chuẩn mà bị lọt vào text
+            # ta sẽ cắt chuỗi String một lần nữa.
+            if '<end>' in sentence:
+                sentence = sentence.split('<end>')[0]
+
+            # Xử lý các dấu câu bị dính (ví dụ " . " -> ".")
+            sentence = sentence.replace(' .', '.').strip()
+
+            sents.append(sentence)
         return sents
 
     def compute_metrics(self, ref, res):
