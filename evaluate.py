@@ -63,16 +63,38 @@ def parse_args():
 
 
 # --- HÀM GIẢI MÃ ID -> TEXT ---
+# def decode_sequence(vocab, seq):
+#     id_to_word = {v: k for k, v in vocab.items()}
+#     words = []
+#     for idx in seq:
+#         idx = idx.item()
+#         if idx == 0: break  # End token
+#         word = id_to_word.get(str(idx), id_to_word.get(idx, '<UNK>'))
+#         words.append(word)
+#     return ' '.join(words)
 def decode_sequence(vocab, seq):
     id_to_word = {v: k for k, v in vocab.items()}
     words = []
     for idx in seq:
         idx = idx.item()
-        if idx == 0: break  # End token
-        word = id_to_word.get(str(idx), id_to_word.get(idx, '<UNK>'))
-        words.append(word)
-    return ' '.join(words)
 
+        # Lấy từ ra trước
+        word = id_to_word.get(str(idx), id_to_word.get(idx, '<UNK>'))
+
+        # Kiểm tra nội dung từ
+        clean_word = word.strip()
+
+        # Gặp thẻ <end> là dừng ngay lập tức (bất kể ID là bao nhiêu)
+        if clean_word == '<end>':
+            break
+
+        # Bỏ qua các thẻ hệ thống khác nếu muốn
+        if clean_word == '<start>' or clean_word == '<pad>':
+            continue
+
+        words.append(word)
+
+    return ' '.join(words)
 
 def run_inference(args, device):
     print(f">> Đang chạy chế độ INFERENCE trên folder: {args.image_folder}")
