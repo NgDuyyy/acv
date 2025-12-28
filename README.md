@@ -109,8 +109,8 @@ The training process consists of two phases: **MLE Pre-training** and **GAN/RL F
 python train.py \
    --checkpoint_dir checkpoints \
    --batch_size 32 \
-   --pretrain_epochs 25 \
-   --gan_epochs 25
+   --pretrain_epochs 20 \
+   --gan_epochs 20
 
 ```
 
