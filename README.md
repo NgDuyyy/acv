@@ -82,6 +82,7 @@ pip install -r requirements.txt
 Since the dataset is not included in the repository, you need to prepare the data manually.
 
 **Step 1: Download Raw Data**
+`https://drive.google.com/drive/u/0/folders/1lN91FJxCL4jkXU1U1I7JcA-M88K1owpf`
 Place your images (KTVIC, COCOVN) into `data/raw/`.
 
 **Step 2: Preprocessing**
@@ -126,12 +127,12 @@ python evaluate.py \
 
 ## Results
 
-| Metric | MLE (Phase 1) | GAN/RL (Phase 2) |
-| --- | --- | --- |
-| **BLEU-4** | 0.xx | 0.xx |
-| **METEOR** | 0.xx | 0.xx |
-| **ROUGE-L** | 0.xx | 0.xx |
-| **CIDEr** | 0.xx | 0.xx |
+| Metric | Val | Test |
+| --- |--|--|
+| **BLEU-4** | 0.3923 | 0.0731 |
+| **METEOR** | 0.3556 | 0.2463 |
+| **ROUGE-L** | 0.5432 | 0.3016 |
+| **CIDEr** | 1.2234 | 0.4351 |
 
 ## License
 
