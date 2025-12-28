@@ -1,15 +1,46 @@
 # Image Captioning Pipeline
 
-Đây là codebase cho dự án Image Captioning, hỗ trợ trích xuất đặc trưng bottom-up, huấn luyện mô hình và đánh giá kết quả.
+Đây là codebase toàn diện cho dự án **Image Captioning**, kết hợp sức mạnh của thị giác máy tính và xử lý ngôn ngữ tự nhiên. Dự án triển khai quy trình trích xuất đặc trưng kép: sử dụng **Faster R-CNN** cho đặc trưng vùng (Bottom-Up Attention) và **RelTR (Relation Transformer)** để xây dựng biểu đồ ngữ cảnh (Scene Graph). Các đặc trưng này được tích hợp vào mô hình giải mã **LSTM** (với cơ chế Attention) để sinh ra các câu mô tả ảnh chính xác, tự nhiên và giàu ngữ nghĩa hơn.
 
 ## Cấu trúc thư mục
 
-*   `data/`: Chứa dữ liệu ảnh và nhãn (chia thành `train`, `val`, `test`).
-*   `models/`: Chứa mã nguồn định nghĩa các mô hình (`.py`).
-*   `utils/`: Chứa các hàm hỗ trợ đọc dữ liệu, đánh giá, v.v.
-*   `result/`: Chứa kết quả đầu ra (checkpoints, logs, features, eval results).
-*   `scripts/`: Chứa các script tiền xử lý dữ liệu.
-*   `train.py`, `eval.py`, `complete_image_captioning_pipeline.py`: Các file chạy chính.
+```text
+├── configs
+│   └── lstm_train.yml
+├── data
+│   ├── features
+│   ├── LSTM
+│   ├── RelTR_ckpt
+│   ├── test
+│   ├── train
+│   └── val
+├── models
+│   ├── feature_extracting
+│   ├── LSTM
+│   └── RelTR
+├── scripts
+│   ├── create_reltr_hdf5.py
+│   ├── extract_reltr_features.py
+│   ├── generate_tsv.py
+│   ├── make_bu_data.py
+│   ├── prepare_data_merged.py
+│   ├── prepro_labels.py
+│   └── prepro_reference_json.py
+├── utils
+│   ├── feature_extracting
+│   ├── LSTM
+│   └── RelTR
+├── complete_image_captioning_pipeline.py
+├── eval.py
+├── infer.py
+└── train.py
+```
+
+## Kết quả thực nghiệm (Experimental Results)
+
+| Method | BLEU-1 | BLEU-4 | METEOR | ROUGE_L | CIDEr | SPICE |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| RelTR (Scene Graph) | 72.1 | 39.1 | 34.7 | 55.9 | 123.3 | 8.7 |
 
 ## 1. Cài đặt
 

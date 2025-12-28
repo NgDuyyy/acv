@@ -1,22 +1,33 @@
-torch>=1.8.0
-torchvision>=0.9.0
-numpy>=1.19.0
-Pillow>=8.0.0
-tqdm>=4.50.0
-nltk>=3.5.0
-scikit-image
-lmdbdict
-tensorboard
-six
-h5py
-PyYAML
-yacs
+# Core Deep Learning
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Numerical & Image Processing
+numpy>=1.24.0
+Pillow>=10.0.0
+scikit-image==0.25.2
+scipy==1.14.1
+opencv-python-headless>=4.8.0
+
+# Visualization & Logging
+tqdm==4.67.1
+tensorboard==2.19.0
+matplotlib>=3.7.0
+
+# Utilities
+six==1.16.0
+h5py>=3.9.0
+PyYAML==6.0.2
+yacs>=0.1.8
+easydict>=1.10
 cython
-scipy
-matplotlib
-opencv-python
-easydict
 ninja
-pycocotools
-imageio
+
+# NLP & COCO Evaluation
+nltk>=3.8.0
+pycocotools>=2.0.7
 pycocoevalcap @ git+https://github.com/salaniz/pycocoevalcap.git
+imageio>=2.30.0
+
+# Misc
+lmdbdict
