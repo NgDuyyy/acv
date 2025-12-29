@@ -1,8 +1,13 @@
-# Image Captioning Pipeline
+# VisionText AI: Advanced Image Captioning with Scene Graphs
 
-Đây là codebase toàn diện cho dự án **Image Captioning**, kết hợp sức mạnh của thị giác máy tính và xử lý ngôn ngữ tự nhiên. Dự án triển khai quy trình trích xuất đặc trưng kép: sử dụng **Faster R-CNN** cho đặc trưng vùng (Bottom-Up Attention) và **RelTR (Relation Transformer)** để xây dựng biểu đồ ngữ cảnh (Scene Graph). Các đặc trưng này được tích hợp vào mô hình giải mã **LSTM** (với cơ chế Attention) để sinh ra các câu mô tả ảnh chính xác, tự nhiên và giàu ngữ nghĩa hơn.
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![PyTorch](https://img.shields.io/badge/PyTorch-Enabled-red)
+![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)
+![OpenCV](https://img.shields.io/badge/OpenCV-white?style=flat&logo=opencv&logoColor=black)
 
-## Cấu trúc thư mục
+This is a comprehensive codebase for the **Image Captioning** project, combining the power of Computer Vision and Natural Language Processing. The project implements a dual feature extraction pipeline: using **Faster R-CNN** for regional features (Bottom-Up Attention) and **RelTR (Relation Transformer)** to construct Scene Graphs. These features are integrated into an **LSTM** decoder model (with Attention mechanism) to generate accurate, natural, and semantically rich image descriptions.
+
+## Directory Structure
 
 ```text
 ├── configs
@@ -36,118 +41,117 @@
 └── train.py
 ```
 
-## Kết quả thực nghiệm (Experimental Results)
+## Experimental Results
 
 | Method | BLEU-1 | BLEU-4 | METEOR | ROUGE_L | CIDEr | SPICE |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | RelTR (Scene Graph) | 72.1 | 39.1 | 34.7 | 55.9 | 123.3 | 8.7 |
 
-## 1. Cài đặt
+## 1. Installation
 
-Cài đặt các thư viện cần thiết:
+Install necessary libraries:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## 2. Chuẩn bị dữ liệu
+## 2. Data Preparation
 
-Đảm bảo dữ liệu ảnh đã được đặt trong `data/train`, `data/val`, và `data/test`.
+Ensure image data is placed in `data/train`, `data/val`, and `data/test`.
 
-### Bước 1: Trích xuất đặc trưng hình ảnh (Visual Features)
+### Step 1: Extract Visual Features
 
-Bắt buộc cho mọi mô hình. Sử dụng Faster R-CNN để trích xuất đặc trưng vùng (ROI).
+Mandatory for all models. Uses Faster R-CNN to extract Region of Interest (ROI) features.
 
-*   **Lệnh chạy:**
+*   **Command:**
     ```bash
     python scripts/generate_tsv.py --cuda --cfg models/cfgs/res101.yml --net res101
     ```
-    *(Lưu ý: Cần cấu hình đúng đường dẫn ảnh và output trong script hoặc qua tham số nếu có)*
+    *(Note: Configure the correct image and output paths in the script or via arguments if available)*
 
-*   **Input:** Ảnh trong `data/train`, `data/val`, `data/test`.
-*   **Output:** Các file `.tsv` được lưu trong `data/features/features_tsv/`.
+*   **Input:** Images in `data/train`, `data/val`, `data/test`.
+*   **Output:** `.tsv` files saved in `data/features/features_tsv/`.
 
-### Bước 2: Trích xuất đặc trưng Scene Graph (RelTR)
+### Step 2: Extract Scene Graph Features (RelTR)
 
-Bắt buộc nếu bạn dùng mô hình có RelTR. Bước này tạo ra file `.h5` chứa thông tin quan hệ giữa các vật thể.
+Mandatory if using a model with RelTR. This step generates an `.h5` file containing object relationship information.
 
-*   **Lệnh chạy:**
+*   **Command:**
     ```bash
     python scripts/create_reltr_hdf5.py --json_path data/LSTM/data_merged.json --data_root data --output_h5 data/features/reltr_features.h5
     ```
-*   **Input:** File JSON đã gộp (`data/LSTM/data_merged.json`) và thư mục ảnh gốc.
-*   **Output:** File `data/features/reltr_features.h5` chứa đặc trưng quan hệ (Subject-Predicate-Object).
+*   **Input:** Merged JSON file (`data/LSTM/data_merged.json`) and root image directory.
+*   **Output:** `data/features/reltr_features.h5` containing relational features (Subject-Predicate-Object).
 
-### Bước 3: Định dạng đặc trưng (Feature Formatting)
+### Step 3: Feature Formatting
 
-Chuyển đổi file TSV sang định dạng `.npy` để huấn luyện nhanh hơn và chia về đúng thư mục.
+Convert TSV files to `.npy` format for faster training and organize them into correct directories.
 
-*   **Lệnh chạy:**
+*   **Command:**
     ```bash
     python scripts/make_bu_data.py
     ```
-*   **Input:** Các file `.tsv` trong `data/features/features_tsv/`.
-*   **Output:** Các thư mục `features_extracted_att`, `features_extracted_fc`, `features_extracted_box` bên trong `data/features`.
+*   **Input:** `.tsv` files in `data/features/features_tsv/`.
+*   **Output:** Directories `features_extracted_att`, `features_extracted_fc`, `features_extracted_box` inside `data/features`.
 
-### Bước 4: Chuẩn bị dữ liệu huấn luyện (Data Preparation)
+### Step 4: Data Preparation
 
-Gộp và xử lý file annotation từ các tập train/val thành một file JSON thống nhất cho huấn luyện.
+Merge and process annotation files from train/val sets into a unified JSON file for training.
 
-*   **Lệnh chạy:**
+*   **Command:**
     ```bash
     python scripts/prepare_data_merged.py
     ```
-    *(Lưu ý: Kiểm tra và sửa đường dẫn `train_path`, `val_path`, `output_path` trong file này nếu cần)*
+    *(Note: Check and modify `train_path`, `val_path`, `output_path` in this file if necessary)*
 
 *   **Input:** `data/train/train_data.json`, `data/val/val_data.json`.
 *   **Output:** `data/LSTM/data_merged.json`.
 
-### Bước 5: Tạo file tham chiếu đánh giá (Evaluation Reference)
+### Step 5: Create Evaluation Reference
 
-Tạo file JSON tham chiếu chuẩn cho việc đánh giá (nếu cần thiết cho `coco-caption`).
+Create a standard reference JSON file for evaluation (required for `coco-caption`).
 
-*   **Lệnh chạy:**
+*   **Command:**
     ```bash
     python scripts/prepro_reference_json.py --input_json data/val/val_data.json --output_json data/LSTM/val_reference.json
     ```
 
-### Bước 6: Tiền xử lý nhãn (Label Preprocessing)
+### Step 6: Label Preprocessing
 
-Tạo bộ từ điển (vocabulary) và file H5 chứa nhãn đã mã hóa cho mô hình.
+Create vocabulary and H5 file containing encoded labels for the model.
 
-*   **Lệnh chạy:**
+*   **Command:**
     ```bash
     python scripts/prepro_labels.py --input_json data/LSTM/data_merged.json --output_json data/LSTM/data_label.json --output_h5 data/LSTM/data
     ```
 *   **Input:** `data/LSTM/data_merged.json`.
-*   **Output:** `data/LSTM/data_label.h5` và `data/LSTM/data_label.json`.
+*   **Output:** `data/LSTM/data_label.h5` and `data/LSTM/data_label.json`.
 
 
-## 3. Huấn luyện (Training)
+## 3. Training
 
-Huấn luyện mô hình Image Captioning.
+Train the Image Captioning model.
 
-*   **Lệnh chạy:**
+*   **Command:**
     ```bash
     python train.py --cfg configs/lstm_train.yml
     ```
-*   **Tham số quan trọng:**
-    *   `--id`: Tên định danh cho lần chạy này.
-    *   `--caption_model`: Loại mô hình (ví dụ: `updown`, `att2in`, `transformer`).
-    *   `--checkpoint_path`: Thư mục lưu checkpoint.
-    *   `--checkpoint_path`: Thư mục lưu checkpoint.
-    *   **Lưu ý cho RelTR:** Để bật tính năng Scene Graph, hãy đảm bảo config `configs/lstm_train.yml` có dòng `input_rel_dir: data/features/reltr_features.h5`. Nếu muốn chạy Baseline (không Graph), hãy để trống dòng này (`input_rel_dir: ""`).
-    *   Các tham số được chỉnh trong `configs/lstm_train.yml`.
+*   **Key Parameters:**
+    *   `--id`: Identifier for this run.
+    *   `--caption_model`: Model type (e.g., `updown`, `att2in`, `transformer`).
+    *   `--checkpoint_path`: Directory to save checkpoints.
+    *   **Note for RelTR:** To enable Scene Graph features, ensure `configs/lstm_train.yml` has the line `input_rel_dir: data/features/reltr_features.h5`. To run Baseline (no Graph), leave this line empty (`input_rel_dir: ""`).
+    *   Parameters are configured in `configs/lstm_train.yml`.
 *   **Output:**
-    *   Checkpoint mô hình: `result/checkpoints/model-best.pth`.
-    *   File thông tin huấn luyện: `result/checkpoints/infos_my_run-best.pkl`.
-    *   Log huấn luyện: `result/training_history_data.csv`.
+    *   Model Checkpoint: `result/checkpoints/model-best.pth`.
+    *   Training Info: `result/checkpoints/infos_my_run-best.pkl`.
+    *   Training Log: `result/training_history_data.csv`.
 
-## 4. Đánh giá (Evaluation)
+## 4. Evaluation
 
-Đánh giá mô hình đã huấn luyện trên tập val/test, sinh caption và tính toán các chỉ số (BLEU, CIDEr, SPICE...).
+Evaluate the trained model on val/test sets, generate captions, and calculate metrics (BLEU, CIDEr, SPICE...).
 
-*   **Lệnh chạy:**
+*   **Command:**
     ```bash
     python eval.py \
       --model result/log_lstm/model-best.pth \
@@ -162,78 +166,75 @@ Huấn luyện mô hình Image Captioning.
       --metrics_csv result/scores_val.csv
     ```
 
-*   **Giải thích tham số:**
-    *   `--model`, `--infos_path`: Đường dẫn đến checkpoint mô hình và file info.
-    *   `--input_json` & `--language_eval_json`: File JSON chứa danh sách ảnh và caption gốc (Ground Truth).
-    *   `--input_att_dir`: Thư mục chứa features (attention) tương ứng.
-    *   `--language_eval 1`: Bật tính năng chấm điểm ngôn ngữ.
-    *   `--save_csv_results 1`: Bật tính năng lưu kết quả ra file CSV.
+*   **Parameter Explanation:**
+    *   `--model`, `--infos_path`: Paths to model checkpoint and info file.
+    *   `--input_json` & `--language_eval_json`: JSON file containing image list and ground truth captions.
+    *   `--input_att_dir`: Directory containing corresponding attention features.
+    *   `--language_eval 1`: Enable language evaluation.
+    *   `--save_csv_results 1`: Enable saving results to CSV.
 
 *   **Output:**
-    *   **`result/predictions_val.csv`**: Chứa filename, caption gốc và caption dự đoán.
-    *   **`result/scores_val.csv`**: Chứa bảng điểm chi tiết (BLEU-1..4, METEOR, ROUGE_L, CIDEr, SPICE).
+    *   **`result/predictions_val.csv`**: Contains filenames, ground truth captions, and predicted captions.
+    *   **`result/scores_val.csv`**: Contains detailed scores (BLEU-1..4, METEOR, ROUGE_L, CIDEr, SPICE).
 
 ## 5. Full Pipeline
 
-Chạy toàn bộ quy trình từ trích xuất đặc trưng đến sinh caption cho một thư mục ảnh mới.
+Run the entire pipeline from feature extraction to caption generation for a new directory of images.
 
-*   **Lệnh chạy:**
+*   **Command:**
     ```bash
     python complete_image_captioning_pipeline.py full --images_dir data/my_new_images --output_root result/my_output --model result/checkpoints/model-best.pth --infos result/checkpoints/infos_my_run-best.pkl
     ```
 
+## 6. Simple Inference
 
+Run inference on a single image for a quick check.
 
-## 6. Inference đơn giản
-
-Chạy inference trên một ảnh bất kỳ để kiểm tra nhanh kết quả.
-
-*   **Lệnh chạy:**
+*   **Command:**
     ```bash
     python infer.py --image test_image/my_image.jpg --frcnn_model models/feature_extracting/pretrained_model/faster_rcnn_res101_vg.pth --caption_model result/log_lstm/model-best.pth --infos_path result/log_lstm/infos_-best.pkl --gpu
     ```
 
-*   **Tham số:**
-    *   `--image`: Đường dẫn ảnh cần đặt caption.
-    *   `--frcnn_model`: Đường dẫn đến checkpoint Faster R-CNN (dùng để trích xuất đặc trưng).
-    *   `--caption_model`: Đường dẫn đến checkpoint mô hình Captioning đã train.
-    *   `--infos_path`: Đường dẫn đến file infos.pkl tương ứng với checkpoint.
-    *   `--gpu`: Thêm cờ này để chạy trên GPU (mặc định chạy CPU nếu không có cờ này).
+*   **Parameters:**
+    *   `--image`: Path to the image.
+    *   `--frcnn_model`: Path to Faster R-CNN checkpoint (feature extractor).
+    *   `--caption_model`: Path to trained Captioning model checkpoint.
+    *   `--infos_path`: Path to `infos.pkl` file corresponding to the checkpoint.
+    *   `--gpu`: Add this flag to run on GPU (defaults to CPU if omitted).
 
-*   **Output:** In trực tiếp caption dự đoán ra màn hình.
+*   **Output:** Predicted caption printed directly to the console.
 
-### Chạy Inference với RelTR (Scene Graph)
+### Inference with RelTR (Scene Graph)
 
-Để sử dụng mô hình có tích hợp Scene Graph:
+To use the model integrated with Scene Graph:
 
-*   **Lệnh chạy:**
+*   **Command:**
     ```bash
-    python infer.py --use_reltr --image test_image/my_image.jpg ... (các tham số khác như trên)
+    python infer.py --use_reltr --image test_image/my_image.jpg ... (other parameters as above)
     ```
-*   **Tham số thêm:**
-    *   `--use_reltr`: Bật tính năng sử dụng RelTR.
-    *   `--reltr_model_path`: Đường dẫn đến checkpoint RelTR (mặc định: `data/RelTR_ckpt/checkpoint0149.pth`).
+*   **Additional Parameters:**
+    *   `--use_reltr`: Enable RelTR usage.
+    *   `--reltr_model_path`: Path to RelTR checkpoint (default: `data/RelTR_ckpt/checkpoint0149.pth`).
 
-## Ghi chú
+## Notes
 
-*   Để sử dụng CPU thay vì GPU, thêm cờ `--force_cpu 1` (tuy nhiên huấn luyện sẽ rất chậm).
-*   Kết quả đánh giá và log sẽ được lưu tập trung trong thư mục `result/` để dễ quản lý.
+*   To use CPU instead of GPU, add the flag `--force_cpu 1` (training will be very slow).
+*   Evaluation results and logs are centrally saved in the `result/` directory for easy management.
 
 ## 7. Web Demo
 
-Dự án cung cấp một giao diện web trực quan để trải nghiệm mô hình Image Captioning.
+The project provides an intuitive web interface to experience the Image Captioning model.
 
 ![Web Demo Screenshot](static/Screenshot%202025-12-29%20234649.png)
 
-### Tính năng:
-*   **Giao diện hiện đại**: Dark Mode, phong cách AI/Futuristic.
-*   **Dễ sử dụng**: Hỗ trợ kéo thả ảnh (Drag & Drop) và xem trước (Preview).
-*   **Xử lý thông minh**: Tự động phát hiện GPU/CPU, sử dụng **Greedy Search + Block Trigrams** để sinh caption tự nhiên, không bị lặp từ.
+### Features:
+*   **Modern Interface**: Dark Mode, AI/Futuristic style.
+*   **Easy to Use**: Supports Drag & Drop and Image Preview.
+*   **Smart Processing**: Auto-detects GPU/CPU, uses **Greedy Search + Block Trigrams** to generate natural, non-repetitive captions.
 
-### Cách chạy:
-Chạy lệnh sau từ thư mục gốc dự án:
+### How to Run:
+Run the following command from the project root:
 ```bash
 python app.py
 ```
-Sau đó truy cập trình duyệt tại địa chỉ: **http://localhost:8000**
-
+Then access the browser at: **http://localhost:8000**
