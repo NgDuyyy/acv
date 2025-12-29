@@ -314,14 +314,14 @@ def generate_caption(model, vocab, feature_tensor, rel_feats=None, use_gpu=True)
         att_feats = att_feats.cuda()
         
     with torch.no_grad():
-        # Using beam search by default or greedy
-        # Based on eval_utils.py: model(fc_feats, att_feats, att_masks, opt=tmp_eval_kwargs, mode='sample')
-        eval_kwargs = {'beam_size': 5, 'sample_n': 1}
-        # We pass att_masks=None since we have a single image or no masking needed for 1 element
-        # Using beam search by default or greedy
-        # Based on eval_utils.py: model(fc_feats, att_feats, att_masks, opt=tmp_eval_kwargs, mode='sample')
-        eval_kwargs = {'beam_size': 5, 'sample_n': 1}
-        # We pass att_masks=None since we have a single image or no masking needed for 1 element
+        # Custom parameters to reduce repetition
+        eval_kwargs = {
+            'beam_size': 1,     # Greedy search (Most stable for this model)
+            'sample_n': 1,
+            'block_trigrams': 1, # Enable trigram blocking
+            'sample_method': 'greedy'
+        }
+        # Use simple 'sample' mode which supports block_trigrams in greedy loop
         seq, seq_logprobs = model(fc_feats, att_feats, att_masks=None, opt=eval_kwargs, mode='sample', rel_feats=rel_feats)
         
     # Decode

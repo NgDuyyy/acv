@@ -218,3 +218,22 @@ Chạy inference trên một ảnh bất kỳ để kiểm tra nhanh kết quả
 
 *   Để sử dụng CPU thay vì GPU, thêm cờ `--force_cpu 1` (tuy nhiên huấn luyện sẽ rất chậm).
 *   Kết quả đánh giá và log sẽ được lưu tập trung trong thư mục `result/` để dễ quản lý.
+
+## 7. Web Demo
+
+Dự án cung cấp một giao diện web trực quan để trải nghiệm mô hình Image Captioning.
+
+![Web Demo Screenshot](static/Screenshot%202025-12-29%20234649.png)
+
+### Tính năng:
+*   **Giao diện hiện đại**: Dark Mode, phong cách AI/Futuristic.
+*   **Dễ sử dụng**: Hỗ trợ kéo thả ảnh (Drag & Drop) và xem trước (Preview).
+*   **Xử lý thông minh**: Tự động phát hiện GPU/CPU, sử dụng **Greedy Search + Block Trigrams** để sinh caption tự nhiên, không bị lặp từ.
+
+### Cách chạy:
+Chạy lệnh sau từ thư mục gốc dự án:
+```bash
+python app.py
+```
+Sau đó truy cập trình duyệt tại địa chỉ: **http://localhost:8000**
+

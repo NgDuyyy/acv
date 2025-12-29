@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionText AI - Image Captioning</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">👁️</span>
+                <span class="logo-text">VisionText <span class="accent-text">AI</span></span>
+            </div>
+            <nav class="nav">
+                <a href="#" class="nav-link active">Home</a>
+                <a href="https://github.com/NgDuyyy/acv" target="_blank" class="nav-link">GitHub</a>
+            </nav>
+        </header>
+
+        <!-- Hero Section -->
+        <section class="hero">
+            <h1 class="hero-title">Unlock the Stories <br> hidden in your <span class="gradient-text">Photos</span></h1>
+            <p class="hero-subtitle">Advanced Image Captioning powered by RelTR Scene Graphs & LSTM</p>
+        </section>
+
+        <!-- Main Interaction Area -->
+        <main class="main-content">
+            <div class="upload-container" id="upload-zone">
+                <input type="file" id="file-input" accept="image/png, image/jpeg" hidden>
+                
+                <!-- Initial Upload State -->
+                <div class="upload-content" id="upload-content">
+                    <div class="upload-icon">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 16V8M12 8L9 11M12 8L15 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M16 16H20C21.1046 16 22 15.1046 22 14V14C22 12.8954 21.1046 12 20 12H19.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M8 16H4C2.89543 16 2 15.1046 2 14V14C2 12.8954 2.89543 12 4 12H4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M16 12C16 10.8954 16.8954 10 18 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M8 12C8 10.8954 7.10457 10 6 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M12 8V4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <h3>Drag & Drop your image here</h3>
+                    <p>or <button class="upload-btn" onclick="document.getElementById('file-input').click()">Browse Files</button></p>
+                    <p class="file-support">Supports: JPG, PNG</p>
+                </div>
+
+                <!-- Preview & Result State (Hidden initially) -->
+                <div class="result-layout hidden" id="result-layout">
+                    <div class="image-preview-container">
+                        <img id="preview-img" src="" alt="Image Preview">
+                        <button class="remove-btn" id="remove-btn" title="Remove image">✕</button>
+                    </div>
+
+                    <div class="caption-container">
+                        <div class="status-indicator">
+                            <div class="loading-bar hidden" id="loading-bar">
+                                <div class="progress"></div>
+                            </div>
+                            <span id="status-text">Ready to generate</span>
+                        </div>
+                        
+                        <div class="caption-box">
+                            <div class="caption-header">
+                                <span class="caption-label">Generated Caption</span>
+                                <button class="copy-btn" id="copy-btn">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                    Copy
+                                </button>
+                            </div>
+                            <p class="caption-text" id="caption-text">...</p>
+                        </div>
+
+                        <button class="generate-btn" id="generate-btn">
+                            <span class="btn-icon">✨</span> Generate Caption
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2024 VisionText AI. Powered by Advanced CV Project.</p>
+        </footer>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
