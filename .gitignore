@@ -4,6 +4,7 @@ extract_feature.sh
 eval.sh
 train.sh
 run_reltr_all.sh
+train_scst.sh
 __pycache__/
 *.pyc
 .DS_Store
