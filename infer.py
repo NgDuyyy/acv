@@ -38,10 +38,10 @@ import pathlib
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Image Captioning Inference")
-    parser.add_argument("--image", type=str, default="test_image/cat.jpg", help="Path to input image")
+    parser.add_argument("--image", type=str, default="test_image/haibeo.jpg", help="Path to input image")
     parser.add_argument("--frcnn_model", type=str, default="models/feature_extracting/pretrained_model/faster_rcnn_res101_vg.pth", help="Path to Faster R-CNN checkpoint")
-    parser.add_argument("--caption_model", type=str, default="result/final_term/log_lstm_reltr/model-best.pth", help="Path to Captioning Model checkpoint")
-    parser.add_argument("--infos_path", type=str, default="result/final_term/log_lstm_reltr/infos_reltr-best.pkl", help="Path to infos.pkl file")
+    parser.add_argument("--caption_model", type=str, default="result/final_term/scst/log_lstm_reltr_scst/model-best.pth", help="Path to Captioning Model checkpoint")
+    parser.add_argument("--infos_path", type=str, default="result/final_term/scst/log_lstm_reltr_scst/infos_reltr_scst-best.pkl", help="Path to infos.pkl file")
     parser.add_argument("--gpu", action="store_true", help="Use GPU")
     
     # RelTR Arguments

@@ -27,12 +27,17 @@ COCO_API_AVAILABLE = True
 
 # load coco-caption if available
 try:
-    sys.path.append("coco-caption")
+    # Check purely for installed package first
     from pycocotools.coco import COCO
     from pycocoevalcap.eval import COCOEvalCap
-except Exception as e:
-    COCO_API_AVAILABLE = False
-    print('Warning: coco-caption not available. Error message:', e)
+except ImportError:
+    try:
+        sys.path.append("coco-caption")
+        from pycocotools.coco import COCO
+        from pycocoevalcap.eval import COCOEvalCap
+    except Exception as e:
+        COCO_API_AVAILABLE = False
+        print('Warning: coco-caption not available. Error message:', e)
 
 bad_endings = ['a','an','the','in','for','at','of','with','before','after','on','upon','near','to','is','are','am']
 bad_endings += ['the']

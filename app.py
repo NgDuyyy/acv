@@ -36,8 +36,8 @@ async def lifespan(app: FastAPI):
     # Paths (Hardcoded or Configurable)
     FRCNN_PATH = "models/feature_extracting/pretrained_model/faster_rcnn_res101_vg.pth"
     RELTR_PATH = "data/RelTR_ckpt/checkpoint0149.pth"
-    CAPTION_PATH = "result/final_term/log_lstm_reltr/model-best.pth"
-    INFOS_PATH = "result/final_term/log_lstm_reltr/infos_reltr-best.pkl"
+    CAPTION_PATH = "result/final_term/scst/log_lstm_reltr_scst/model-best.pth"
+    INFOS_PATH = "result/final_term/scst/log_lstm_reltr_scst/infos_reltr_scst-best.pkl"
     
     try:
         # Load Faster R-CNN

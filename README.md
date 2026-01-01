@@ -45,7 +45,9 @@ This is a comprehensive codebase for the **Image Captioning** project, combining
 
 | Method | BLEU-1 | BLEU-4 | METEOR | ROUGE_L | CIDEr | SPICE |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| RelTR (Scene Graph) | 72.1 | 39.1 | 34.7 | 55.9 | 123.3 | 8.7 |
+| Baseline (Faster R-CNN) | 71.6 | 38.8 | 34.7 | 55.7 | 121.0 | 8.7 |
+| RelTR (Cross-Entropy) | 72.1 | 39.1 | 34.7 | 55.9 | 123.3 | 8.7 |
+| **RelTR + SCST** | **75.9** | **41.0** | **35.3** | **57.3** | **138.7** | **8.9** |
 
 ## 1. Installation
 
@@ -147,6 +149,29 @@ Train the Image Captioning model.
     *   Training Info: `result/checkpoints/infos_my_run-best.pkl`.
     *   Training Log: `result/training_history_data.csv`.
 
+### SCST Optimization (Self-Critical Sequence Training)
+
+After training with Cross-Entropy (step above), we perform fine-tuning using SCST to directly optimize the **CIDEr** metric. This significantly improves the quality and naturalness of captions.
+
+*   **Prerequisites:**
+    1.  Generate N-gram cache (runs once):
+        ```bash
+        python scripts/prepro_ngrams.py --input_json data/LSTM/data_merged.json --dict_json data/LSTM/data_label.json --output_pkl data/LSTM/data-train --split train
+        ```
+    2.  Ensure `configs/lstm_scst.yml` points to the best Cross-Entropy checkpoint (`start_from`).
+
+*   **Command:**
+    ```bash
+    python train.py --cfg configs/lstm_scst.yml
+    ```
+*   **Key Configs (`lstm_scst.yml`):**
+    *   `learning_rate`: 5e-5 (Lower than initial training).
+    *   `max_epochs`: 30 (with Early Stopping).
+    *   `self_critical_after`: 0 (Enable immediately).
+
+*   **Output:**
+    *   Optimized Model: `result/final_term/scst/log_lstm_reltr_scst/model-best.pth`.
+
 ## 4. Evaluation
 
 Evaluate the trained model on val/test sets, generate captions, and calculate metrics (BLEU, CIDEr, SPICE...).
@@ -154,16 +179,16 @@ Evaluate the trained model on val/test sets, generate captions, and calculate me
 *   **Command:**
     ```bash
     python eval.py \
-      --model result/log_lstm/model-best.pth \
-      --infos_path result/log_lstm/infos_-best.pkl \
+      --model result/final_term/scst/log_lstm_reltr_scst/model-best.pth \
+      --infos_path result/final_term/scst/log_lstm_reltr_scst/infos_reltr_scst-best.pkl \
       --input_json data/LSTM/val_reference.json \
       --language_eval_json data/LSTM/val_reference.json \
       --input_att_dir data/features/features_extracted_att \
       --split val \
       --language_eval 1 \
       --save_csv_results 1 \
-      --predictions_csv result/predictions_val.csv \
-      --metrics_csv result/scores_val.csv
+      --predictions_csv result/predictions_reltr_scst_val.csv \
+      --metrics_csv result/scores_reltr_scst_val.csv
     ```
 
 *   **Parameter Explanation:**
@@ -174,8 +199,8 @@ Evaluate the trained model on val/test sets, generate captions, and calculate me
     *   `--save_csv_results 1`: Enable saving results to CSV.
 
 *   **Output:**
-    *   **`result/predictions_val.csv`**: Contains filenames, ground truth captions, and predicted captions.
-    *   **`result/scores_val.csv`**: Contains detailed scores (BLEU-1..4, METEOR, ROUGE_L, CIDEr, SPICE).
+    *   **`result/predictions_reltr_scst_val.csv`**: Contains filenames, ground truth captions, and predicted captions.
+    *   **`result/scores_reltr_scst_val.csv`**: Contains detailed scores (BLEU-1..4, METEOR, ROUGE_L, CIDEr, SPICE).
 
 ## 5. Full Pipeline
 
@@ -183,7 +208,7 @@ Run the entire pipeline from feature extraction to caption generation for a new 
 
 *   **Command:**
     ```bash
-    python complete_image_captioning_pipeline.py full --images_dir data/my_new_images --output_root result/my_output --model result/checkpoints/model-best.pth --infos result/checkpoints/infos_my_run-best.pkl
+    python complete_image_captioning_pipeline.py full --images_dir data/my_new_images --output_root result/my_output --model result/final_term/scst/log_lstm_reltr_scst/model-best.pth --infos result/final_term/scst/log_lstm_reltr_scst/infos_reltr_scst-best.pkl
     ```
 
 ## 6. Simple Inference
@@ -192,7 +217,7 @@ Run inference on a single image for a quick check.
 
 *   **Command:**
     ```bash
-    python infer.py --image test_image/my_image.jpg --frcnn_model models/feature_extracting/pretrained_model/faster_rcnn_res101_vg.pth --caption_model result/log_lstm/model-best.pth --infos_path result/log_lstm/infos_-best.pkl --gpu
+    python infer.py --image test_image/my_image.jpg --frcnn_model models/feature_extracting/pretrained_model/faster_rcnn_res101_vg.pth --caption_model result/final_term/scst/log_lstm_reltr_scst/model-best.pth --infos_path result/final_term/scst/log_lstm_reltr_scst/infos_reltr_scst-best.pkl --gpu
     ```
 
 *   **Parameters:**
