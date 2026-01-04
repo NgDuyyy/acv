@@ -50,6 +50,8 @@ liệu huấn luyện. Mỗi ảnh có đầy đủ 5 caption
 | COCO-VN    | 20000        | 100000           |
 | Tổng cộng  | 23769        | 118845           | 
 
+![Ảnh mẫu 1](image/anh_mau.png)
+
 Bộ dữ liệu kiểm thử là 500 ảnh tự thu thập, tự gán nhãn với mỗi ảnh 1 nhãn. Tất cả dữ liệu huấn luyện và kiểm thử được
 đặt tại [đường link này](https://drive.google.com/drive/folders/1lN91FJxCL4jkXU1U1I7JcA-M88K1owpf?usp=drive_link)
 
