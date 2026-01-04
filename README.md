@@ -5,8 +5,7 @@
 
 ## 1. Overview
 
-The project implements an image captioning model using a ResNet101 encoder and an LSTM decoder with beam search for
-inference. Key components:
+The project implements an image captioning model using a ResNet101 encoder and an LSTM decoder. Key components:
 
 - `config.py`: Centralizes all paths and hyperparameters.
 - `prepare_data.py`: Converts raw data (JSON + images) into pre-processed HDF5/JSON format.
@@ -108,57 +107,11 @@ Notes:
 - `beam-size = 5` usually yields good quality with reasonable time; you can verify this by changing it and comparing
   logs.
 
-## 7. Inference & Visualization
+## 7. Result
 
-### 7.1 Single Image Captioning
-
-```powershell
-python run_single_inference.py `
-    --img data/test/images/000123.jpg `
-    --checkpoint result\pretrained_parameters\BEST_checkpoint_custom_5_cap_per_img_5_min_word_freq.pth.tar `
-    --beam-size 5
-```
-
-Use the optional `--word-map` if you need to specify a different `WORDMAP_*.json` file. The result is printed to the
-console.
-
-### 7.2 Generate GT vs. Pred PDF for 3 images
-
-```powershell
-python scripts/visualize_predictions.py `
-    --images data/test/images/000098.jpg data/test/images/000445.jpg data/test/images/000500.jpg `
-    --gt-json data/test/test_data.json `
-    --checkpoint result\pretrained_parameters\BEST_checkpoint_custom_5_cap_per_img_5_min_word_freq.pth.tar `
-    --output result\visualizations\demo.pdf
-```
-
-- The script will take up to the first 3 images in the list, run beam search, and save each image as a separate PDF
-  file (e.g., `demo_000101.pdf`).
-- Defaults can be adjusted in the `DEFAULT_IMAGE_PATHS` variable if you prefer not to pass arguments.
-
-## 8. Plotting Training History
-
-Once you have `training_history.csv`, run:
-
-```powershell
-python plot_training_history.py `
-    --history result/log_history/training_history.csv `
-    --output charts/training_history.png
-```
-
-Do not pass `--output` if you want to display the matplotlib window instead of saving to a file.
-
-## 9. Tips & Troubleshooting
-
-- **ModuleNotFoundError when running scripts in `scripts/`**: Ensure you run from the project root directory or have
-  added `PROJECT_ROOT` to `PYTHONPATH`. `visualize_predictions.py` handles this automatically.
-- Incorrect data paths: Check `config.py` to ensure `*_DIR` and `RAW_*` variables point to the correct directories you
-  are using (e.g., when creating an additional test_vx, update `TEST_DIR`).
-- Want to try different beam sizes: Use the `--beam-size` argument for `eval.py`, `run_single_inference.py`, and
-  `scripts/visualize_predictions.py`.
-- Clean up processed data: Manually delete the `data/*/processed` folders or use `python prepare_data.py --force`.
-- Missing ground truth during visualization: The script will display a (`Ground truth not found`) message if it cannot
-  map the `filename` in the JSON; check if `image_path.name` appears in the JSON's `images` list.
-
-If adding new features (e.g., a different test split), simply update `config.py` and `utils/datasets.py`, then repeat
-the steps above.
+| Metric      | Evaluate: Encoder + Decoder(LSTM + Global mean encoding) (Val) | Inference: Encoder + Decoder(LSTM + Global mean encoding) (Test) |
+|-------------|----------------------------------------------------------------|------------------------------------------------------------------|
+| **BLEU-4**  | 0.3469                                                         | 0.0627                                                           |
+| **METEOR**  | 0.4975                                                         | 0.2364                                                           |
+| **ROUGE**   | 0.5576                                                         | 0.3115                                                           |
+| **CIDEr**   | 1.2361                                                         | 0.3821                                                           |
