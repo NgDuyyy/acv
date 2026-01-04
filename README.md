@@ -103,10 +103,10 @@ word map is missing.
 
 ## Results
 
-| Metric      | Phase 1: Encoder + Decoder(LSTM + Global mean encoding) (Val) | Phase 2: Encoder + Decoder(LSTM + Attention) (Val) | Inference: Encoder + Decoder(LSTM + Attention) (Test) |
-|-------------|---------------------------------------------------------------|----------------------------------------------------|-------------------------------------------------------|
-| **BLEU-4**  | 0.3468                                                        | 0.3568                                             | 0.0548                                                |
-| **METEOR**  | 0.4974                                                        | 0.5107                                             | 0.2184                                                |
-| **ROUGE**   | 0.5575                                                        | 0.5628                                             | 0.3070                                                |
-| **CIDEr**   | 1.2361                                                        | 1.2674                                             | 0.8798                                                |
-| **SPICE**   | 0.4420                                                        | 0.5611                                             | 0.3198                                                |
+| Metric      | Evaluate: Encoder + Decoder(LSTM + Attention) (Val) | Inference: Encoder + Decoder(LSTM + Attention) (Test) |
+|-------------|-----------------------------------------------------|-------------------------------------------------------|
+| **BLEU-4**  | 0.3569                                              | 0.0549                                                |
+| **METEOR**  | 0.5107                                              | 0.2185                                                |
+| **ROUGE**   | 0.5629                                              | 0.3070                                                |
+| **CIDEr**   | 1.2675                                              | 0.4036                                                |
+| **SPICE**   | 0.2012                                              | 0.0319                                                |
