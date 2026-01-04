@@ -17,7 +17,7 @@ Image-Captioning/
 │   ├── models/                 # Encoder/Decoder definitions
 │   ├── utils/                  # Training utilities, metrics, checkpoint helpers
 │   └── scripts/                # CLI helpers (prepare_data, caption, visualize, ...)
-├── train.py       # Train loop + validation + logging
+├── train.py                    # Train loop + validation + logging
 ├── eval.py                     # Full-metric evaluation
 ├── inference.py                # Beam-search helper for notebooks
 └── run_single_inference.py     # Lightweight CLI inference
