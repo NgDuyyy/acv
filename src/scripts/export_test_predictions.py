@@ -1,40 +1,33 @@
+"""Infer captions for an entire split and export GT/PRED pairs to CSV."""
+
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Sequence
 
-import matplotlib.pyplot as plt
 import torch
 import torchvision.transforms as transforms
 from PIL import Image
+from tqdm import tqdm
 
-# Đảm bảo có thể import config/models dù file nằm trong scripts/
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from config import (
-    CHECKPOINT_DIR,
-    DATA_NAME_BASE,
-    DEVICE,
-    TEST_DIR,
-    WORD_MAP_PATH,
-)
-from models import Decoder, Encoder
+from config import CHECKPOINT_DIR, DATA_NAME_BASE, DEVICE, TEST_DIR, WORD_MAP_PATH
+from src.models import Decoder, Encoder
 
-# Paste your custom image paths here if you prefer editing a constant instead of CLI args.
-DEFAULT_IMAGE_PATHS: List[Path] = [
-    TEST_DIR / 'images' / '000098.jpg',
-    TEST_DIR / 'images' / '000445.jpg',
-    TEST_DIR / 'images' / '000500.jpg',
-]
+DEFAULT_JSON = TEST_DIR / 'test_data.json'
+DEFAULT_IMAGES_DIR = TEST_DIR / 'images'
+DEFAULT_OUTPUT = PROJECT_ROOT / 'result' / 'log_history' / 'test_predictions.csv'
 
 
 def _ensure_pickled_classes() -> None:
-    """Ensure Encoder/Decoder classes are discoverable when loading old checkpoints."""
     main_module = sys.modules.get('__main__')
     if main_module is None:
         return
@@ -58,27 +51,24 @@ def _load_word_map(path: Path | None, fallback: Dict[str, int] | None) -> Dict[s
     if fallback is not None:
         return fallback
 
-    def _candidate_paths() -> Iterable[Path]:
+    def _candidates() -> Iterable[Path]:
         seen: set[Path] = set()
-        for candidate in [path, WORD_MAP_PATH]:
-            if candidate is not None:
-                candidate = candidate.resolve()
-                if candidate not in seen:
-                    seen.add(candidate)
-                    yield candidate
-        data_dir = Path('data')
-        if data_dir.exists():
-            for candidate in sorted(data_dir.rglob('WORDMAP_*.json')):
-                resolved = candidate.resolve()
-                if resolved not in seen:
-                    seen.add(resolved)
-                    yield resolved
+        for candidate in filter(None, [path, WORD_MAP_PATH]):
+            candidate = candidate.resolve()
+            if candidate not in seen:
+                seen.add(candidate)
+                yield candidate
+        for candidate in sorted((PROJECT_ROOT / 'data').rglob('WORDMAP_*.json')):
+            resolved = candidate.resolve()
+            if resolved not in seen:
+                seen.add(resolved)
+                yield resolved
 
-    for candidate in _candidate_paths():
+    for candidate in _candidates():
         if candidate.exists():
             with candidate.open('r', encoding='utf-8') as handle:
                 return json.load(handle)
-    raise FileNotFoundError('Không tìm thấy word map. Vui lòng cung cấp --word-map hoặc chạy prepare_data.py.')
+    raise FileNotFoundError('Không tìm thấy word map. Hãy truyền --word-map hoặc chạy src/scripts/prepare_data.py.')
 
 
 def _preprocess(image_path: Path) -> torch.Tensor:
@@ -120,8 +110,10 @@ def _beam_search(
 
     while True:
         embeddings = decoder.embedding(k_prev_words).squeeze(1)
-        context = encoder_out.mean(dim=1)
-        inputs = torch.cat([embeddings, context], dim=1)
+        attention_weighted_encoding, _ = decoder.attention(encoder_out, h)
+        gate = decoder.sigmoid(decoder.f_beta(h))
+        attention_weighted_encoding = gate * attention_weighted_encoding
+        inputs = torch.cat([embeddings, attention_weighted_encoding], dim=1)
         h, c = decoder.decode_step(inputs, (h, c))
 
         scores = F.log_softmax(decoder.fc(h), dim=1)
@@ -140,11 +132,10 @@ def _beam_search(
         incomplete_inds = [idx for idx, next_word in enumerate(next_word_inds) if next_word != word_map['<end>']]
         complete_inds = list(set(range(len(next_word_inds))) - set(incomplete_inds))
 
-        if len(complete_inds) > 0:
+        if complete_inds:
             complete_seqs.extend(seqs[complete_inds].tolist())
             complete_scores.extend(top_k_scores[complete_inds])
         k -= len(complete_inds)
-
         if k == 0:
             break
 
@@ -159,7 +150,7 @@ def _beam_search(
             break
         step += 1
 
-    if len(complete_scores) > 0:
+    if complete_scores:
         best_idx = complete_scores.index(max(complete_scores))
         return complete_seqs[best_idx]
     if len(seqs) > 0:
@@ -168,104 +159,98 @@ def _beam_search(
 
 
 def _tokens_to_sentence(tokens: Sequence[int], rev_word_map: Dict[int, str], special_ids: set[int]) -> str:
-    words = [rev_word_map.get(tok, '<unk>') for tok in tokens if tok not in special_ids]
-    return ' '.join(words)
+    return ' '.join(
+        rev_word_map.get(tok, '<unk>')
+        for tok in tokens
+        if tok not in special_ids
+    )
 
 
-def _load_ground_truth_captions(json_path: Path) -> Dict[str, List[str]]:
+@dataclass
+class Sample:
+    filename: str
+    image_path: Path
+    captions: List[str]
+
+
+def _load_samples(json_path: Path, images_dir: Path) -> List[Sample]:
     if not json_path.exists():
-        raise FileNotFoundError(f"Không tìm thấy file ground-truth: {json_path}")
+        raise FileNotFoundError(f"Không tìm thấy file JSON: {json_path}")
     with json_path.open('r', encoding='utf-8') as handle:
         data = json.load(handle)
 
     id_to_filename = {img['id']: img['filename'] for img in data.get('images', [])}
-    filename_to_captions: Dict[str, List[str]] = {}
+    filename_to_caps: Dict[str, List[str]] = {fn: [] for fn in id_to_filename.values()}
     for ann in data.get('annotations', []):
         filename = id_to_filename.get(ann['image_id'])
         if filename is None:
             continue
-        filename_to_captions.setdefault(filename, []).append(ann['caption'])
-    return filename_to_captions
+        filename_to_caps.setdefault(filename, []).append(ann.get('caption', ''))
 
-
-def _resolve_image_paths(cli_paths: Sequence[Path] | None) -> List[Path]:
-    if cli_paths:
-        return [p if p.is_absolute() else p.resolve() for p in cli_paths]
-    existing_defaults = [path for path in DEFAULT_IMAGE_PATHS if path.exists()]
-    if existing_defaults:
-        return existing_defaults
-    raise ValueError('Hãy truyền --images hoặc chỉnh DEFAULT_IMAGE_PATHS với đường dẫn hợp lệ.')
-
-
-def _plot_each_sample(samples: List[dict], output_path: Path) -> None:
-    if not samples:
-        raise ValueError('Không có ảnh nào để vẽ.')
-
-    output_path = output_path.resolve()
-    if output_path.suffix.lower() == '.pdf':
-        base_dir = output_path.parent
-        prefix = output_path.stem
-    else:
-        base_dir = output_path
-        prefix = 'sample'
-    base_dir.mkdir(parents=True, exist_ok=True)
-
-    for sample in samples:
-        fig, ax = plt.subplots(figsize=(6, 7))
-        image = Image.open(sample['image_path']).convert('RGB')
-        ax.imshow(image)
-        ax.axis('off')
-        caption_text = f"GT: {sample['ground_truth']}\nPred: {sample['prediction']}"
-        ax.text(
-            0.01,
-            -0.12,
-            caption_text,
-            transform=ax.transAxes,
-            fontsize=11,
-            ha='left',
-            va='top',
-            wrap=True,
+    samples: List[Sample] = []
+    for img in data.get('images', []):
+        filename = img['filename']
+        path = images_dir / filename
+        samples.append(
+            Sample(
+                filename=filename,
+                image_path=path,
+                captions=filename_to_caps.get(filename, []),
+            )
         )
-
-        filename = f"{prefix}_{sample['image_path'].stem}.pdf"
-        fig.savefig(base_dir / filename, format='pdf', bbox_inches='tight')
-        plt.close(fig)
+    return samples
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description='Infer captions for selected images and export a PDF summary.')
-    parser.add_argument('--images', type=Path, nargs='*', default=None, help='Danh sách đường dẫn ảnh (hoặc chỉnh DEFAULT_IMAGE_PATHS).')
+    parser = argparse.ArgumentParser(description='Infer toàn bộ tập và xuất CSV GT/PRED.')
+    parser.add_argument('--json', type=Path, default=DEFAULT_JSON, help='Đường dẫn test_data.json.')
+    parser.add_argument('--images-dir', type=Path, default=DEFAULT_IMAGES_DIR, help='Thư mục chứa ảnh tương ứng.')
     parser.add_argument('--checkpoint', type=Path, default=CHECKPOINT_DIR / f'BEST_checkpoint_{DATA_NAME_BASE}.pth.tar', help='Checkpoint dùng để inference.')
-    parser.add_argument('--word-map', type=Path, default=None, help='Đường dẫn word map nếu muốn override.')
-    parser.add_argument('--gt-json', type=Path, default=TEST_DIR / 'test_data.json', help='JSON chứa ground-truth captions.')
+    parser.add_argument('--word-map', type=Path, default=None, help='Đường dẫn WORDMAP_*.json (tự tìm nếu bỏ trống).')
     parser.add_argument('--beam-size', type=int, default=5, help='Beam size cho decoder.')
     parser.add_argument('--max-steps', type=int, default=50, help='Số bước decode tối đa.')
-    parser.add_argument('--output', type=Path, default=Path('result') / 'sample_predictions.pdf', help='File PDF đầu ra.')
+    parser.add_argument('--output', type=Path, default=DEFAULT_OUTPUT, help='CSV đầu ra (2 cột GT, PRED).')
     return parser.parse_args()
 
 
 def main() -> None:
     args = _parse_args()
-    image_paths = _resolve_image_paths(args.images)
+    samples = _load_samples(args.json, args.images_dir)
+    if not samples:
+        raise RuntimeError('Không tìm thấy ảnh nào trong JSON.')
 
     encoder, decoder, word_map_from_ckpt = _load_models(args.checkpoint)
     word_map = _load_word_map(args.word_map, word_map_from_ckpt)
     rev_word_map = {v: k for k, v in word_map.items()}
     special_ids = {word_map.get('<start>'), word_map.get('<end>'), word_map.get('<pad>')}
 
-    gt_map = _load_ground_truth_captions(args.gt_json)
-
-    samples = []
-    for image_path in image_paths[:3]:
-        image_tensor = _preprocess(image_path)
-        token_seq = _beam_search(encoder, decoder, image_tensor, word_map, args.beam_size, args.max_steps)
+    rows: List[tuple[str, str]] = []
+    for sample in tqdm(samples, desc='Inferencing', unit='img'):
+        if not sample.image_path.exists():
+            print(f"[CẢNH BÁO] Thiếu file ảnh: {sample.image_path}")
+            continue
+        image_tensor = _preprocess(sample.image_path)
+        token_seq = _beam_search(
+            encoder=encoder,
+            decoder=decoder,
+            image_tensor=image_tensor,
+            word_map=word_map,
+            beam_size=args.beam_size,
+            max_steps=args.max_steps,
+        )
         prediction = _tokens_to_sentence(token_seq, rev_word_map, special_ids)
-        gt_caption_list = gt_map.get(image_path.name, [])
-        ground_truth = gt_caption_list[0] if gt_caption_list else '(Không tìm thấy ground truth)'
-        samples.append({'image_path': image_path, 'ground_truth': ground_truth, 'prediction': prediction})
+        gt = ' || '.join(sample.captions) if sample.captions else '(Không có GT)'
+        rows.append((gt, prediction))
 
-    _plot_each_sample(samples, args.output)
-    print(f"Đã lưu PDF tại: {args.output}")
+    if not rows:
+        raise RuntimeError('Không tạo được dòng kết quả nào. Kiểm tra lại dữ liệu đầu vào.')
+
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    with args.output.open('w', encoding='utf-8', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['GT', 'PRED'])
+        writer.writerows(rows)
+    print(f"Đã ghi {len(rows)} dòng vào {args.output}")
 
 
 if __name__ == '__main__':

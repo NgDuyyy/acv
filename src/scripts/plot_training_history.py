@@ -66,9 +66,9 @@ def _determine_scale(series: pd.Series, threshold: float = 1e4) -> Tuple[float, 
 
 def _plot_curves(df: pd.DataFrame) -> plt.Figure:
     loss_scale, loss_suffix = _determine_scale(pd.concat([df['train_loss'], df['val_loss']]))
-    bleu_scale, bleu_suffix = _determine_scale(df['val_bleu4'], threshold=100)
+    cider_scale, cider_suffix = _determine_scale(df['val_cider'], threshold=100)
 
-    fig, (ax_loss, ax_bleu) = plt.subplots(1, 2, figsize=(12, 4), constrained_layout=True)
+    fig, (ax_loss, ax_metric) = plt.subplots(1, 2, figsize=(12, 4), constrained_layout=True)
 
     ax_loss.plot(df['epoch'], df['train_loss'] / loss_scale, label='Train Loss', color='#1f77b4')
     ax_loss.plot(df['epoch'], df['val_loss'] / loss_scale, label='Validation Loss', color='#ff7f0e')
@@ -78,11 +78,12 @@ def _plot_curves(df: pd.DataFrame) -> plt.Figure:
     ax_loss.grid(alpha=0.2)
     ax_loss.legend()
 
-    ax_bleu.plot(df['epoch'], df['val_bleu4'] / bleu_scale, label='Validation BLEU-4', color='#2ca02c')
-    ax_bleu.set_title('BLEU-4 Score over Epochs')
-    ax_bleu.set_xlabel('Epoch')
-    ax_bleu.set_ylabel(f'BLEU-4{bleu_suffix}')
-    ax_bleu.grid(alpha=0.2)
+    ax_metric.plot(df['epoch'], df['val_cider'] / cider_scale, label='Validation CIDEr', color='#2ca02c')
+    ax_metric.set_title('CIDEr Score over Epochs')
+    ax_metric.set_xlabel('Epoch')
+    ax_metric.set_ylabel(f'CIDEr{cider_suffix}')
+    ax_metric.grid(alpha=0.2)
+    ax_metric.legend()
 
     return fig
 

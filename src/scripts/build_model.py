@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import torch
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from config import (
+    ATTENTION_DIM,
     CHECKPOINT_DIR,
     DATA_NAME_BASE,
     DECODER_DIM,
@@ -17,7 +23,7 @@ from config import (
     FINE_TUNE_ENCODER,
     WORD_MAP_PATH,
 )
-from models import Decoder, Encoder
+from src.models import Decoder, Encoder
 
 
 def parse_args() -> argparse.Namespace:
@@ -43,7 +49,7 @@ def main() -> None:
 
     if not WORD_MAP_PATH.exists():
         raise FileNotFoundError(
-            f"Word map not found at {WORD_MAP_PATH}. Run prepare_data.py first."
+            f"Word map not found at {WORD_MAP_PATH}. Run src/scripts/prepare_data.py first."
         )
 
     with WORD_MAP_PATH.open('r', encoding='utf-8') as handle:
@@ -56,6 +62,7 @@ def main() -> None:
         embed_dim=EMB_DIM,
         decoder_dim=DECODER_DIM,
         vocab_size=vocab_size,
+        attention_dim=ATTENTION_DIM,
         dropout=DROPOUT,
     )
 

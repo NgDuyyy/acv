@@ -1,32 +1,35 @@
-"""Evaluate captioning metrics (BLEU, METEOR, ROUGE, CIDEr) trên toàn bộ tập."""
+"""Evaluate captioning metrics (BLEU, METEOR, ROUGE, CIDEr, SPICE) trên toàn bộ tập."""
 
 from __future__ import annotations
 
 import argparse
 import csv
 import json
-import math
 import time
-from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, List, Sequence, Set, Tuple
 
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 import tqdm
+from nltk.stem import PorterStemmer
 from nltk.translate.bleu_score import SmoothingFunction, corpus_bleu
 from nltk.translate.meteor_score import single_meteor_score
 from torch.utils.data import DataLoader
 
 from config import CHECKPOINT_DIR, DATA_NAME_BASE, DEVICE, WORD_MAP_PATH, LOG_HISTORY_DIR
-from models import Decoder, Encoder
-from utils import CaptionDataset
+from src.dataloader import CaptionDataset
+from src.models import Decoder, Encoder
+from src.utils.metrics import compute_cider
+
+_SPICE_STEMMER = PorterStemmer()
 
 
 def evaluate_metrics(
     *,
     split: str = 'VAL',
+    split_dir: Path | None = None,
     beam_size: int = 5,
     checkpoint_path: Path | None = None,
     word_map_path: Path | None = None,
@@ -65,9 +68,18 @@ def evaluate_metrics(
 
     # 2. DataLoader (Batch size = 1 cho Beam Search)
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    loader = DataLoader(
-        CaptionDataset(DATA_NAME_BASE, split, transform=transforms.Compose([normalize])),
-        batch_size=1, shuffle=False, num_workers=0, pin_memory=True)
+    if split_dir is not None:
+        split_dir = Path(split_dir)
+        if not split_dir.exists():
+            raise FileNotFoundError(f"Không tìm thấy thư mục processed cho split: {split_dir}")
+
+    dataset = CaptionDataset(
+        DATA_NAME_BASE,
+        split,
+        transform=transforms.Compose([normalize]),
+        data_folder_override=split_dir,
+    )
+    loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0, pin_memory=True)
 
     references = []  # dạng chỉ số (cho BLEU)
     hypotheses = []
@@ -103,8 +115,10 @@ def evaluate_metrics(
         # Decoding
         while True:
             embeddings = decoder.embedding(k_prev_words).squeeze(1)
-            context = encoder_out.mean(dim=1)
-            inputs = torch.cat([embeddings, context], dim=1)
+            attention_weighted_encoding, _ = decoder.attention(encoder_out, h)
+            gate = decoder.sigmoid(decoder.f_beta(h))
+            attention_weighted_encoding = gate * attention_weighted_encoding
+            inputs = torch.cat([embeddings, attention_weighted_encoding], dim=1)
             h, c = decoder.decode_step(inputs, (h, c))
             scores = F.log_softmax(decoder.fc(h), dim=1)
             scores = top_k_scores.expand_as(scores) + scores
@@ -183,7 +197,8 @@ def evaluate_metrics(
     }
     metrics['meteor'] = _compute_meteor(references_tokens, hypotheses_tokens)
     metrics['rouge'] = _compute_rouge_l(references_tokens, hypotheses_tokens)
-    metrics['cider'] = _compute_cider(references_tokens, hypotheses_tokens)
+    metrics['cider'] = compute_cider(references_tokens, hypotheses_tokens)
+    metrics['spice'] = _compute_spice(references_tokens, hypotheses_tokens)
 
     if log_csv_path is not None:
         _log_eval_row(
@@ -255,90 +270,43 @@ def _compute_rouge_l(
     return float(sum(scores) / len(scores)) if scores else 0.0
 
 
-def _compute_cider(
+def _normalize_tokens_for_spice(tokens: Sequence[str]) -> Set[str]:
+    normalized: Set[str] = set()
+    for token in tokens:
+        lowered = ''.join(ch for ch in token.lower() if ch.isalnum())
+        if not lowered:
+            continue
+        normalized.add(_SPICE_STEMMER.stem(lowered))
+    return normalized
+
+
+def _compute_spice(
     references_tokens: Sequence[Sequence[Sequence[str]]],
     hypotheses_tokens: Sequence[Sequence[str]],
-    max_n: int = 4,
 ) -> float:
-    df, num_docs = _build_document_frequency(references_tokens, max_n)
     scores = []
     for refs, hyp in zip(references_tokens, hypotheses_tokens):
-        scores.append(_cider_score_for_image(refs, hyp, df, num_docs, max_n))
-    return float(sum(scores) / len(scores)) if scores else 0.0
-
-
-def _build_document_frequency(
-    references_tokens: Sequence[Sequence[Sequence[str]]],
-    max_n: int,
-) -> Tuple[Dict[Tuple[Tuple[str, ...], int], int], int]:
-    df: Dict[Tuple[Tuple[str, ...], int], int] = defaultdict(int)
-    num_docs = 0
-    for ref_list in references_tokens:
-        for ref in ref_list:
-            num_docs += 1
-            unique_ngrams = set()
-            for n in range(1, max_n + 1):
-                for ngram in _iter_ngrams(ref, n):
-                    unique_ngrams.add((ngram, n))
-            for ngram in unique_ngrams:
-                df[ngram] += 1
-    return df, max(num_docs, 1)
-
-
-def _iter_ngrams(tokens: Sequence[str], n: int) -> Iterable[Tuple[str, ...]]:
-    if len(tokens) < n or n <= 0:
-        return []
-    return [tuple(tokens[i : i + n]) for i in range(len(tokens) - n + 1)]
-
-
-def _tfidf_vector(
-    tokens: Sequence[str],
-    df: Dict[Tuple[Tuple[str, ...], int], int],
-    num_docs: int,
-    n: int,
-) -> Tuple[Dict[Tuple[str, ...], float], float]:
-    counts = Counter(_iter_ngrams(tokens, n))
-    if not counts:
-        return {}, 0.0
-    norm_factor = float(sum(counts.values())) or 1.0
-    vec: Dict[Tuple[str, ...], float] = {}
-    norm_sq = 0.0
-    for ngram, tf in counts.items():
-        key = (ngram, n)
-        df_val = df.get(key, 0)
-        idf = math.log((num_docs + 1.0) / (df_val + 1.0))
-        value = (tf / norm_factor) * idf
-        vec[ngram] = value
-        norm_sq += value * value
-    return vec, math.sqrt(norm_sq)
-
-
-def _cider_score_for_image(
-    refs: Sequence[Sequence[str]],
-    hyp: Sequence[str],
-    df: Dict[Tuple[Tuple[str, ...], int], int],
-    num_docs: int,
-    max_n: int,
-) -> float:
-    if not hyp:
-        return 0.0
-    hyp_vecs = [_tfidf_vector(hyp, df, num_docs, n) for n in range(1, max_n + 1)]
-    ref_vecs = [[_tfidf_vector(ref, df, num_docs, n) for n in range(1, max_n + 1)] for ref in refs]
-    scores = []
-    for ref_vec in ref_vecs:
-        score_n = 0.0
-        for n_idx in range(max_n):
-            hyp_vec, hyp_norm = hyp_vecs[n_idx]
-            ref_comp, ref_norm = ref_vec[n_idx]
-            if hyp_norm == 0 or ref_norm == 0:
+        hyp_norm = _normalize_tokens_for_spice(hyp)
+        if not hyp_norm:
+            scores.append(0.0)
+            continue
+        best = 0.0
+        for ref in refs:
+            ref_norm = _normalize_tokens_for_spice(ref)
+            if not ref_norm:
                 continue
-            dot = 0.0
-            for ngram, value in hyp_vec.items():
-                dot += value * ref_comp.get(ngram, 0.0)
-            if hyp_norm and ref_norm:
-                score_n += dot / (hyp_norm * ref_norm)
-        scores.append(score_n / max_n)
-    return 10.0 * (sum(scores) / len(scores)) if scores else 0.0
+            overlap = len(hyp_norm & ref_norm)
+            if overlap == 0:
+                continue
+            precision = overlap / len(hyp_norm)
+            recall = overlap / len(ref_norm)
+            if precision + recall == 0:
+                continue
+            score = (2 * precision * recall) / (precision + recall)
+            if score > best:
+                best = score
+        scores.append(best)
+    return float(sum(scores) / len(scores)) if scores else 0.0
 
 
 def _log_eval_row(
@@ -361,6 +329,7 @@ def _log_eval_row(
         'meteor',
         'rouge',
         'cider',
+        'spice',
     ]
     file_exists = path.exists()
     row = {
@@ -374,6 +343,7 @@ def _log_eval_row(
         'meteor': f"{metrics['meteor']:.6f}",
         'rouge': f"{metrics['rouge']:.6f}",
         'cider': f"{metrics['cider']:.6f}",
+        'spice': f"{metrics['spice']:.6f}",
     }
     with path.open('a', encoding='utf-8', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -412,6 +382,12 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         default=5,
         help='Beam size sử dụng cho giải mã (mặc định: 5).',
+    )
+    parser.add_argument(
+        '--split-dir',
+        type=Path,
+        default=None,
+        help='Tùy chọn: chỉ định thư mục processed khác cho split (ví dụ data/test/processed).',
     )
     parser.add_argument(
         '--checkpoint',
@@ -454,6 +430,7 @@ if __name__ == '__main__':
     log_path = None if args.no_log else args.log_csv
     metrics = evaluate_metrics(
         split=split,
+        split_dir=args.split_dir,
         beam_size=args.beam_size,
         checkpoint_path=args.checkpoint,
         word_map_path=args.word_map_path,
@@ -462,6 +439,6 @@ if __name__ == '__main__':
     )
     print("-" * 50)
     print(f"Kết quả ({split}, beam={args.beam_size}):")
-    for key in ['bleu1', 'bleu2', 'bleu3', 'bleu4', 'meteor', 'rouge', 'cider']:
+    for key in ['bleu1', 'bleu2', 'bleu3', 'bleu4', 'meteor', 'rouge', 'cider', 'spice']:
         print(f"  {key.upper():<6}: {metrics[key]:.4f}")
     print("-" * 50)

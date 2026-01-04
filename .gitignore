@@ -19,6 +19,18 @@ data/
 # comment out if you need to version control JSON configs
 # data/
 
+# chart
+charts/
+
+# results/
+result/
+
+# scripts
+src/scripts/__pycache__/
+src/scripts/export_test_predictions.py/
+src/scripts/plot_training_history.py/
+src/scripts/visualize_predictions.py/
+
 # Model checkpoints & logs
 result/pretrained_parameters/
 .cadence/

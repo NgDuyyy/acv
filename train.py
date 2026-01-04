@@ -12,6 +12,7 @@ import torch.utils.data
 import torchvision.transforms as transforms
 
 from config import (
+    ATTENTION_DIM,
     BATCH_SIZE,
     DATA_NAME_BASE,
     DECODER_DIM,
@@ -34,11 +35,10 @@ from config import (
     CUDNN_BENCHMARK,
     EPOCHS,
 )
-from models import Decoder, Encoder
-from utils import (
-    CaptionDataset,
+from src.dataloader import CaptionDataset, create_input_files
+from src.models import Decoder, Encoder
+from src.utils import (
     adjust_learning_rate,
-    create_input_files,
     save_checkpoint,
     train_one_epoch,
     validate,
@@ -59,7 +59,7 @@ def _format_history_rows(rows: list[dict]) -> list[dict]:
                 'epoch_time_sec': _fmt(row['epoch_time_sec']),
                 'train_loss': _fmt(row['train_loss']),
                 'val_loss': _fmt(row['val_loss']),
-                'val_bleu4': _fmt(row['val_bleu4']),
+                'val_cider': _fmt(row['val_cider']),
             }
         )
     return formatted
@@ -137,6 +137,7 @@ def main() -> None:
         embed_dim=EMB_DIM,
         decoder_dim=DECODER_DIM,
         vocab_size=vocab_size,
+        attention_dim=ATTENTION_DIM,
         dropout=DROPOUT,
     ).to(DEVICE)
     decoder_optimizer = torch.optim.Adam(
@@ -158,7 +159,7 @@ def main() -> None:
     history_rows = []
     log_file_path = LOG_HISTORY_DIR / 'training_history.csv'
     epochs_since_improvement = 0
-    best_bleu4 = 0.0
+    best_cider = 0.0
 
     print(f'Starting Training for {EPOCHS} epochs...')
     for epoch in range(EPOCHS):
@@ -185,7 +186,7 @@ def main() -> None:
             epoch,
             GRAD_CLIP,
         )
-        recent_bleu4, recent_val_loss = validate(
+        recent_cider, recent_val_loss = validate(
             val_loader, encoder, decoder, criterion, word_map
         )
 
@@ -196,24 +197,24 @@ def main() -> None:
                 'epoch_time_sec': epoch_duration,
                 'train_loss': train_loss,
                 'val_loss': recent_val_loss,
-                'val_bleu4': recent_bleu4,
+                'val_cider': recent_cider,
             }
         )
         LOG_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
         with log_file_path.open('w', newline='', encoding='utf-8') as csv_file:
             writer = csv.DictWriter(
-                csv_file, fieldnames=['epoch', 'epoch_time_sec', 'train_loss', 'val_loss', 'val_bleu4']
+                csv_file, fieldnames=['epoch', 'epoch_time_sec', 'train_loss', 'val_loss', 'val_cider']
             )
             writer.writeheader()
             writer.writerows(_format_history_rows(history_rows))
 
-        is_best = recent_bleu4 > best_bleu4
-        best_bleu4 = max(recent_bleu4, best_bleu4)
+        is_best = recent_cider > best_cider
+        best_cider = max(recent_cider, best_cider)
 
         if not is_best:
             epochs_since_improvement += 1
             print(
-                f"\nEpochs since last improvement: {epochs_since_improvement} (Best BLEU-4: {best_bleu4:.4f})\n"
+                f"\nEpochs since last improvement: {epochs_since_improvement} (Best CIDEr: {best_cider:.4f})\n"
             )
         else:
             epochs_since_improvement = 0
@@ -225,10 +226,10 @@ def main() -> None:
                 decoder,
                 encoder_optimizer,
                 decoder_optimizer,
-                recent_bleu4,
+                recent_cider,
                 is_best,
             )
-            print(f"Model saved! New Best BLEU-4: {best_bleu4:.4f}")
+            print(f"Model saved! New Best CIDEr: {best_cider:.4f}")
 
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import List, Tuple
 
 import torch
 import torch.nn as nn
@@ -10,7 +10,8 @@ from nltk.translate.bleu_score import corpus_bleu
 from torch.nn.utils.rnn import pack_padded_sequence
 
 from config import DEVICE
-from utils.training_utils import AverageMeter, clip_gradient
+from .metrics import compute_cider
+from .training_utils import AverageMeter, clip_gradient
 
 
 def train_one_epoch(
@@ -72,6 +73,9 @@ def validate(val_loader, encoder, decoder, criterion, word_map) -> Tuple[float, 
     losses = AverageMeter()
     references = []
     hypotheses = []
+    references_tokens: List[List[List[str]]] = []
+    hypotheses_tokens: List[List[str]] = []
+    rev_word_map = {idx: word for word, idx in word_map.items()}
 
     with torch.no_grad():
         for i, (imgs, caps, caplens, allcaps) in enumerate(val_loader):
@@ -114,10 +118,17 @@ def validate(val_loader, encoder, decoder, criterion, word_map) -> Tuple[float, 
                     )
                 )
                 references.append(img_captions)
+                references_tokens.append(
+                    [
+                        [rev_word_map[w] for w in caption if w in rev_word_map]
+                        for caption in img_captions
+                    ]
+                )
 
             _, preds = torch.max(scores, dim=2)
             preds = preds.cpu().tolist()
             temp_preds = []
+            temp_tokens = []
             for j, _ in enumerate(preds):
                 pred_clean = preds[j][: decode_lengths[j]]
                 pred_clean = [
@@ -127,7 +138,9 @@ def validate(val_loader, encoder, decoder, criterion, word_map) -> Tuple[float, 
                     not in {word_map['<start>'], word_map['<pad>'], word_map['<end>']}
                 ]
                 temp_preds.append(pred_clean)
+                temp_tokens.append([rev_word_map[w] for w in pred_clean if w in rev_word_map])
             hypotheses.extend(temp_preds)
+            hypotheses_tokens.extend(temp_tokens)
 
             if i % 100 == 0:
                 print(
@@ -135,5 +148,6 @@ def validate(val_loader, encoder, decoder, criterion, word_map) -> Tuple[float, 
                 )
 
     bleu4 = corpus_bleu(references, hypotheses)
-    print(f"\n * VAL LOSS - {losses.avg:.3f}, BLEU-4 - {bleu4:.4f}\n")
-    return bleu4, losses.avg
+    cider = compute_cider(references_tokens, hypotheses_tokens)
+    print(f"\n * VAL LOSS - {losses.avg:.3f}, BLEU-4 - {bleu4:.4f}, CIDEr - {cider:.4f}\n")
+    return cider, losses.avg

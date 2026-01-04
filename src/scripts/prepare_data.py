@@ -4,6 +4,12 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from config import (
     DATA_NAME_BASE,
@@ -18,7 +24,7 @@ from config import (
     RAW_VAL_JSON,
     WORD_MAP_PATH,
 )
-from utils import create_input_files, create_test_files
+from src.dataloader import create_input_files, create_test_files
 
 
 def parse_args() -> argparse.Namespace:

@@ -26,7 +26,7 @@ def save_checkpoint(
     decoder,
     encoder_optimizer,
     decoder_optimizer,
-    bleu4: float,
+    primary_metric: float,
     is_best: bool,
 ) -> None:
     """Persist both encoder and decoder state dictionaries."""
@@ -35,7 +35,7 @@ def save_checkpoint(
     state = {
         'epoch': epoch,
         'epochs_since_improvement': epochs_since_improvement,
-        'bleu-4': bleu4,
+        'primary_metric': primary_metric,
         'encoder': encoder,
         'decoder': decoder,
         'encoder_optimizer': encoder_optimizer,

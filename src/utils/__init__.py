@@ -1,7 +1,5 @@
-"""Helper package collecting data loading and training utilities."""
+"""Helper package collecting training utilities."""
 
-from .data_pipeline import create_input_files, create_test_files, process_coco_json
-from .datasets import CaptionDataset
 from .training_loop import train_one_epoch, validate
 from .training_utils import (
     AverageMeter,
@@ -10,14 +8,12 @@ from .training_utils import (
     clip_gradient,
     save_checkpoint,
 )
+from .metrics import compute_cider
 
 __all__ = [
-    'create_input_files',
-    'create_test_files',
-    'process_coco_json',
-    'CaptionDataset',
     'train_one_epoch',
     'validate',
+    'compute_cider',
     'AverageMeter',
     'accuracy',
     'adjust_learning_rate',

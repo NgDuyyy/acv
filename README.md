@@ -1,75 +1,84 @@
-# Hướng dẫn chạy Image-Captioning
+# Image Captioning Attention Baseline
 
-## 1. Tổng quan
-Dự án triển khai mô hình sinh mô tả ảnh (image captioning) sử dụng encoder ResNet101 và decoder LSTM với beam search cho suy luận. Cấu trúc chính:
+![Python](https://img.shields.io/badge/python-3.10+-blue?logo=python)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.2+-ee4c2c?logo=pytorch)
 
-- `config.py`: nơi tập trung mọi đường dẫn và siêu tham số.
-- `prepare_data.py`: chuyển đổi dữ liệu gốc (JSON + ảnh) sang định dạng HDF5/JSON xử lý sẵn.
-- `train_and_evaluate.py`: huấn luyện mô hình, lưu checkpoint tốt nhất và ghi lịch sử.
-- `eval.py`: chạy beam search trên một tập (train/val/test/…​) và ghi BLEU/METEOR/ROUGE/CIDEr.
-- `run_single_inference.py`: caption một ảnh đơn.
-- `scripts/visualize_predictions.py`: caption tối đa 3 ảnh và sinh PDF hiển thị GT vs. dự đoán.
-- `plot_training_history.py`: vẽ biểu đồ loss/BLEU từ file lịch sử.
+Image Captioning pipeline for Vietnamese descriptions built on a ResNet101 encoder + additive-attention LSTM decoder.
+Training uses maximum-likelihood with scheduled evaluation, while inference relies on beam-search decoding. Utilities are
+included for dataset preparation, visualization, and experiment logging.
 
-## 2. Yêu cầu
-- Python >= 3.9 (đã kiểm thử với 3.10).
-- GPU CUDA được khuyến nghị, nhưng có thể chạy CPU (chậm hơn).
-- Thư viện liệt kê trong `requirements.txt` (PyTorch, torchvision, NLTK, pandas, matplotlib, v.v.).
+## Project Structure
 
-## 3. Chuẩn bị môi trường
-```powershell
-# 1) Tạo và kích hoạt virtual env (tùy chọn nhưng nên dùng)
+```text
+Image-Captioning/
+├── config.py                   # Hyperparameters (batch_size, lr, paths...)
+├── src/
+│   ├── dataloader/             # Data ingestion and preprocessing helpers
+│   ├── models/                 # Encoder/Decoder definitions
+│   ├── utils/                  # Training utilities, metrics, checkpoint helpers
+│   └── scripts/                # CLI helpers (prepare_data, caption, visualize, ...)
+├── train.py       # Train loop + validation + logging
+├── eval.py                     # Full-metric evaluation
+├── inference.py                # Beam-search helper for notebooks
+└── run_single_inference.py     # Lightweight CLI inference
+```
+
+## Experimental Guide
+
+### 1. Clone & Environment
+
+```bash
+git clone -b encoder_decoder --single-branch https://github.com/NgDuyyy/acv.git
+cd Image-Captioning
 python -m venv .venv
-.\.venv\Scripts\activate
-
-# 2) Cài đặt thư viện
-pip install --upgrade pip
+source .venv/bin/activate   # Windows: .\.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-> **Lưu ý PowerShell:** nếu muốn xuống dòng trong lệnh dài, hãy dùng ký tự `` ` `` (backtick) ở cuối dòng, không dùng `^`.
+### 2. Data Layout
 
-## 4. Chuẩn bị dữ liệu
-Dự án mong đợi cấu trúc thư mục sau (ví dụ):
+Since the dataset is not included in the repository, you need to prepare the data manually.
+
+**Download Raw Data**
+`https://drive.google.com/drive/u/0/folders/1lN91FJxCL4jkXU1U1I7JcA-M88K1owpf`
+Place your images (KTVIC, COCOVN) into `data/raw/`.
+
 ```
 data/
-  train/
-    images/              # Ảnh JPEG
-    train_data.json      # JSON COCO-like chứa trường images/annotations
-    processed/           # Sẽ được tạo tự động
-  valid/
-    images/
-    val_data.json
-    processed/
-  test/
-    images/
-    test_data.json
-    processed/
+  train/{images/,train_data.json,processed/}
+  valid/{images/,val_data.json,processed/}
+  test/{images/,test_data.json,processed/}
 ```
-Các file JSON cần chứa trường `images` (với `id`, `filename`) và `annotations` (với `image_id`, `caption`). Sau khi đã đặt dữ liệu đúng vị trí, chạy:
-```powershell
-python prepare_data.py --force
-```
-Tùy chọn quan trọng:
-- `--max-len`, `--captions-per-image`, `--min-word-freq`: khớp với tham số huấn luyện mong muốn.
-- Bỏ `--force` nếu chỉ muốn tái tạo test set khi train/val đã tồn tại.
 
-## 5. Huấn luyện
+- JSON files must follow COCO-style fields: `images[id, filename]`, `annotations[image_id, caption]`.
+- Images are JPEG/PNG; they will be resized to 256x256 when building the dataset.
+
+Generate processed splits (HDF5 + tokenized captions):
+
 ```powershell
-python train_and_evaluate.py `
+python src/scripts/prepare_data.py --max-len 50 --captions-per-image 5 --min-word-freq 5 --force
+```
+
+The command populates `data/*/processed/` with `*_IMAGES_*.hdf5`, `*_CAPTIONS_*.json`, `*_CAPLENS_*.json`, and a
+`WORDMAP_*.json` stored under `data/train/processed/`.
+
+### 3. Training Loop
+
+```powershell
+python train.py `
     --patience 20 `
     --lr-patience 8 `
     --max-len 50 `
     --captions-per-image 5 `
     --min-word-freq 5
 ```
-Thông tin chính:
-- Checkpoint tốt nhất được lưu trong `result/pretrained_parameters/` (theo BLEU-4 val).
-- Lịch sử huấn luyện ghi vào `result/log_history/training_history.csv` mỗi epoch.
-- Thay đổi siêu tham số chung (batch size, embedding dim, lr, số epoch mặc định, …​) trong `config.py`.
 
-## 6. Đánh giá mô hình
-Sử dụng `eval.py` để chấm BLEU/METEOR/ROUGE/CIDEr:
+- Best checkpoints land in `result/pretrained_parameters/` using validation CIDEr.
+- Training history (loss, CIDEr, epoch time) streams into `result/log_history/training_history.csv`.
+- Tune batch size, learning rates, epochs, etc. directly in `config.py`.
+
+### 4. Evaluation & Beam Search
+
 ```powershell
 python eval.py `
     --split TEST `
@@ -77,46 +86,27 @@ python eval.py `
     --checkpoint result\pretrained_parameters\BEST_checkpoint_custom_5_cap_per_img_5_min_word_freq.pth.tar `
     --log-csv result\log_history\eval_history_test.csv
 ```
-Ghi chú:
-- `--split` hỗ trợ `TRAIN`, `VAL`, `TEST` và các alias `TEST_V2 … TEST_V6` (nếu bạn tái sử dụng thư mục test hiện tại cho các biến thể đó). Để dùng alias, hãy chắc chắn `utils/datasets.py` ánh xạ chúng tới `PROCESSED_TEST_DIR` hoặc cập nhật `config.TEST_DIR` tương ứng.
-- Thêm `--no-log` nếu chỉ muốn in kết quả, không ghi CSV.
-- `beam-size = 5` thường cho chất lượng tốt mà thời gian hợp lý; bạn có thể kiểm chứng bằng cách thay đổi và so sánh log.
 
-## 7. Suy luận & trực quan hóa
-### 7.1 Caption một ảnh đơn
-```powershell
-python run_single_inference.py `
-    --img data/test/images/000123.jpg `
-    --checkpoint result\pretrained_parameters\BEST_checkpoint_custom_5_cap_per_img_5_min_word_freq.pth.tar `
-    --beam-size 5
-```
-Tùy chọn `--word-map` nếu cần chỉ định file `WORDMAP_*.json` khác. Kết quả in ra console.
+- `--split` accepts `TRAIN`, `VAL`, `TEST` or custom aliases (map them inside `dataloader/dataset.py`).
+- Add `--no-log` if you only want printed metrics.
+- Beam size of 5 is a good balance between quality and latency; adjust freely for experiments.
 
-### 7.2 Sinh PDF GT vs. Pred cho 3 ảnh
-```powershell
-python scripts/visualize_predictions.py `
-    --images data/test/images/000098.jpg data/test/images/000445.jpg data/test/images/000500.jpg `
-    --gt-json data/test/test_data.json `
-    --checkpoint result\pretrained_parameters\BEST_checkpoint_custom_5_cap_per_img_5_min_word_freq.pth.tar `
-    --output result\visualizations\demo.pdf
-```
-- Script sẽ lấy tối đa 3 ảnh đầu tiên trong danh sách, chạy beam search và lưu **mỗi ảnh** thành một file PDF riêng (ví dụ `demo_000101.pdf`).
-- Có thể chỉnh mặc định trong biến `DEFAULT_IMAGE_PATHS` nếu muốn không truyền tham số.
+### 5. Inference Utilities
 
-## 8. Vẽ biểu đồ lịch sử huấn luyện
-Sau khi có `training_history.csv`, chạy:
-```powershell
-python plot_training_history.py `
-    --history result/log_history/training_history.csv `
-    --output charts/training_history.png
-```
-Không truyền `--output` nếu bạn muốn hiển thị cửa sổ matplotlib.
+| Task | Command |
+|------|---------|
+| Caption one image | `python src/scripts/caption.py --img path/to/img.jpg --beam-size 5` |
+| Quick CLI inference | `python run_single_inference.py --img … --checkpoint …` |
 
-## 9. Mẹo & khắc phục sự cố
-- **ModuleNotFoundError khi chạy script trong `scripts/`**: đảm bảo chạy từ thư mục gốc dự án hoặc đã thêm `PROJECT_ROOT` vào `PYTHONPATH`. `visualize_predictions.py` tự xử lý việc này.
-- **Sai đường dẫn dữ liệu**: kiểm tra `config.py` để chắc chắn các biến `*_DIR` và `RAW_*` trỏ đúng thư mục bạn đang sử dụng (ví dụ khi tạo thêm test_vx, cập nhật `TEST_DIR`).
-- **Muốn thử beam size khác**: dùng đối số `--beam-size` cho cả `eval.py`, `run_single_inference.py` và `scripts/visualize_predictions.py`.
-- **Dọn lại processed data**: xoá thủ công thư mục `data/*/processed` hoặc dùng `python prepare_data.py --force`.
-- **Thiếu ground truth khi visualize**: script sẽ hiển thị thông báo `(Không tìm thấy ground truth)` nếu không map được `filename` trong JSON; kiểm tra lại `image_path.name` có xuất hiện trong `images` của JSON hay không.
+All scripts auto-search for `WORDMAP_*.json`. Provide `--word-map` to override or re-run `src/scripts/prepare_data.py` if the
+word map is missing.
 
-Nếu thêm tính năng mới (ví dụ test split khác), chỉ cần cập nhật `config.py` và `utils/datasets.py`, rồi lặp lại các bước trên.
+## Results
+
+| Metric      | Phase 1: Encoder + Decoder(LSTM + Global mean encoding) (Val) | Phase 2: Encoder + Decoder(LSTM + Attention) (Val) | Inference: Encoder + Decoder(LSTM + Attention) (Test) |
+|-------------|---------------------------------------------------------------|----------------------------------------------------|-------------------------------------------------------|
+| **BLEU-4**  | 0.3468                                                        | 0.3568                                             | 0.0548                                                |
+| **METEOR**  | 0.4974                                                        | 0.5107                                             | 0.2184                                                |
+| **ROUGE**   | 0.5575                                                        | 0.5628                                             | 0.3070                                                |
+| **CIDEr**   | 1.2361                                                        | 1.2674                                             | 0.8798                                                |
+| **SPICE**   | 0.4420                                                        | 0.5611                                             | 0.3198                                                |

@@ -16,6 +16,9 @@ from PIL import Image
 from tqdm import tqdm
 
 
+__all__ = ['process_coco_json', 'create_input_files', 'create_test_files']
+
+
 def _ensure_tokenizer() -> None:
     """Download the punkt tokenizer the first time it is needed."""
 

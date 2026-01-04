@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -13,8 +14,12 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from PIL import Image
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from config import CHECKPOINT_DIR, DATA_NAME_BASE, DEVICE, WORD_MAP_PATH
-from models import Decoder, Encoder
+from src.models import Decoder, Encoder
 
 def caption_image_beam_search(encoder, decoder, image_path, word_map, beam_size=5):
     """Sinh caption sử dụng Beam Search."""
@@ -51,8 +56,10 @@ def caption_image_beam_search(encoder, decoder, image_path, word_map, beam_size=
     # 4. Decoding Loop
     while True:
         embeddings = decoder.embedding(k_prev_words).squeeze(1)
-        context = encoder_out.mean(dim=1) 
-        inputs = torch.cat([embeddings, context], dim=1)
+        attention_weighted_encoding, _ = decoder.attention(encoder_out, h)
+        gate = decoder.sigmoid(decoder.f_beta(h))
+        attention_weighted_encoding = gate * attention_weighted_encoding
+        inputs = torch.cat([embeddings, attention_weighted_encoding], dim=1)
         h, c = decoder.decode_step(inputs, (h, c))
 
         scores = F.log_softmax(decoder.fc(h), dim=1)
