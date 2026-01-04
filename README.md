@@ -79,13 +79,13 @@ Bộ dữ liệu kiểm thử là 500 ảnh tự thu thập, tự gán nhãn v�
 Toàn bộ code và hướng dẫn chi tiết cách cài đặt, thực thi chương trình cho từng kiến trúc mô hình được đặt trong các
 nhánh riêng biệt để tiện cho việc phát triển và kiểm tra:
 
-| Mô hình                                                     | Nhánh                                                                  |
-|:------------------------------------------------------------|:-----------------------------------------------------------------------|
-| Model 1: Encoder - Decoder                                  | [encoder_decoder](https://github.com/NgDuyyy/acv/tree/encoder_decoder) |
-| Model 2: Encoder - Decoder kết hợp Cơ chế chú ý             | [encoder_decoder](https://github.com/NgDuyyy/acv/tree/encoder_decoder) |
-| Model 3: Detector - Decoder                                 | [detector_decoder](https://github.com/NgDuyyy/acv/tree/decoder_lstm)   |
-| Model 4: Detector - Decoder kết hợp Mạng nơ-ron đồ thị      | [detector_decoder](https://github.com/NgDuyyy/acv/tree/decoder_lstm)   |
-| Model 5: Encoder - Decoder với cơ chế GAN và Học tăng cường | [conditional-gan](https://github.com/NgDuyyy/acv/tree/conditional-gan) |
+| Mô hình                                                     | Nhánh                                                                                                                           |
+|:------------------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------------------|
+| Model 1: Encoder - Decoder                                  | [encoder_decoder](https://github.com/dangth2004/TrinhHaiDang_22001561_ImageCaptioning/tree/encoder_decoder)                     |
+| Model 2: Encoder - Decoder kết hợp Cơ chế chú ý             | [encoder_decoder_attention](https://github.com/dangth2004/TrinhHaiDang_22001561_ImageCaptioning/tree/encoder_decoder_attention) |
+| Model 3: Detector - Decoder                                 | [detector_decoder](https://github.com/dangth2004/TrinhHaiDang_22001561_ImageCaptioning/tree/decoder_lstm)                       |
+| Model 4: Detector - Decoder kết hợp Mạng nơ-ron đồ thị      | [detector_decoder](https://github.com/dangth2004/TrinhHaiDang_22001561_ImageCaptioning/tree/decoder_lstm)                       |
+| Model 5: Encoder - Decoder với cơ chế GAN và Học tăng cường | [conditional-gan](https://github.com/dangth2004/TrinhHaiDang_22001561_ImageCaptioning/tree/conditional-gan)                     |
 
 
 
