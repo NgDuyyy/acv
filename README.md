@@ -16,14 +16,19 @@ nào.
 
 Chúng tôi đã triển khai và so sánh các kiến trúc tiên tiến để giải quyết bài toán này:
 
-1. **Model 1: Encoder - Decoder:** Kiến trúc nền tảng sử dụng CNN để trích xuất đặc trưng ảnh và LSTM để giải mã thành
-   chuỗi từ.
-2. **Model 2: Encoder - Decoder kết hợp Cơ chế chú ý:**
-3. **Model 3: Detector - Decoder:** Kiến trúc nâng cao tập trung vào việc phát hiện đối tượng trong ảnh trước (Detector)
-   để cung
-   cấp thông tin ngữ cảnh cục bộ chi tiết hơn cho bộ giải mã (Decoder).
-4. **Model 4: Detector - Decoder kết hợp Mạng nơ-ron đồ thị:**
-5. **Model 5: Encoder - Decoder với cơ chế GAN và Học tăng cường:**
+1. **Model 1: Encoder - Decoder (Baseline):** Kiến trúc nền tảng sử dụng CNN (ResNet) để trích xuất đặc trưng toàn cục
+   của ảnh và LSTM để giải mã thành chuỗi từ.
+2. **Model 2: Encoder - Decoder với Cơ chế Chú ý (Attention):** Cải tiến mô hình cơ sở bằng cách cho phép bộ giải mã "
+   tập trung" vào các vùng đặc trưng không gian khác nhau của ảnh tại mỗi bước sinh từ, giúp cải thiện độ chính xác ngữ
+   nghĩa.
+3. **Model 3: Detector - Decoder:** Kiến trúc nâng cao tập trung vào việc phát hiện đối tượng trong ảnh trước (Object
+   Detector) để cung cấp thông tin ngữ cảnh cục bộ chi tiết hơn cho bộ giải mã.
+4. **Model 4: Detector - Decoder kết hợp Mạng nơ-ron Đồ thị (GNN):** Xây dựng đồ thị ngữ cảnh (Scene Graph) để mô hình
+   hóa các mối quan hệ hình học và ngữ nghĩa giữa các đối tượng được phát hiện, giúp caption sinh ra có tính liên kết
+   cao hơn.
+5. **Model 5: Encoder - Decoder với GAN và Học tăng cường (RL):** Phương pháp tiếp cận hiện đại sử dụng mạng đối
+   nghịch (GAN) kết hợp với thuật toán Policy Gradient để tối ưu hóa trực tiếp các độ đo đánh giá (như CIDEr), giúp câu
+   mô tả tự nhiên và giống người hơn.
 
 ---
 
