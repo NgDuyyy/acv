@@ -1,10 +1,10 @@
 # Image Captioning with GAN & RL
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
-![PyTorch](https://img.shields.io/badge/PyTorch-Enabled-red)
-![License](https://img.shields.io/badge/License-MIT-green)
+![Python](https://img.shields.io/badge/python-3.9-blue?logo=python)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.8%2B-ee4c2c?logo=pytorch)
 
-Vietnamese Image Captioning project using Attention-based LSTM architecture, trained with Maximum Likelihood Estimation (MLE) and optimized using Adversarial Training (GAN) & Reinforcement Learning (SCST) to maximize CIDEr score.
+Vietnamese Image Captioning project using Attention-based LSTM architecture, trained with Maximum Likelihood
+Estimation (MLE) and optimized using Adversarial Training (GAN) & Reinforcement Learning (SCST) to maximize CIDEr score.
 
 ## Project Structure
 
@@ -97,7 +97,8 @@ python src/utils/extract_features.py --image_dir data/raw/images --output_dir da
 
 ```
 
-After this step, ensure `data/processed/` contains `vocab.json`, `train_images.npy`, `val_images.npy`, `train_labels.npy`, `val_labels.npy`, and `train_ref.pkl`.
+After this step, ensure `data/processed/` contains `vocab.json`, `train_images.npy`, `val_images.npy`,
+`train_labels.npy`, `val_labels.npy`, and `train_ref.pkl`.
 
 ### 4. Training
 
@@ -115,7 +116,8 @@ python train.py \
 ```
 
 * **Phase 1 (MLE):** The model learns to generate grammatically correct sentences using Cross-Entropy Loss.
-* **Phase 2 (GAN/RL):** The model is fine-tuned using SCST (Self-Critical Sequence Training) to directly optimize the CIDEr metric.
+* **Phase 2 (GAN/RL):** The model is fine-tuned using SCST (Self-Critical Sequence Training) to directly optimize the
+  CIDEr metric.
 
 ### 5. Evaluation / Inference
 
@@ -131,13 +133,13 @@ python evaluate.py \
 
 ## Results
 
-| Metric      | Phase 1: MLE (Val) | Phase 2: GAN/RL (Val) | Inference: GAN/RL (Test)  |
-|-------------|--------------------|-----------------------|---------------------------|
-| **BLEU-4**  | 0.2850             | 0.3923                | 0.0731                    |
-| **METEOR**  | 0.3040             | 0.3556                | 0.2463                    |
-| **ROUGE-L** | 0.4500             | 0.5432                | 0.3016                    |
-| **CIDEr**   | 0.9450             | 1.2234                | 0.4351                    |
-| **SPICE**   | 0.1420             |  0.2134               | 0.0351                    |
+| Metric      | Phase 1: MLE (Val) | Phase 2: GAN/RL (Val) | Inference: GAN/RL (Test) |
+|-------------|--------------------|-----------------------|--------------------------|
+| **BLEU-4**  | 0.2850             | 0.3923                | 0.0731                   |
+| **METEOR**  | 0.3040             | 0.3556                | 0.2463                   |
+| **ROUGE-L** | 0.4500             | 0.5432                | 0.3016                   |
+| **CIDEr**   | 0.9450             | 1.2234                | 0.4351                   |
+| **SPICE**   | 0.1420             | 0.2134                | 0.0351                   |
 
 ## License
 
